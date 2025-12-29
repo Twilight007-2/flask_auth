@@ -9,6 +9,7 @@ from flask_migrate import upgrade, Migrate, init
 from flask_mail import Mail, Message
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy.exc import IntegrityError
 
 MAX_ATTEMPTS = 5
 LOCK_TIME = timedelta(minutes=10)
@@ -116,25 +117,35 @@ def init_database():
         with app.app_context():
             db.create_all()
             
-            # Create admin user if it doesn't exist
+            # Create admin user if it doesn't exist (check by email OR username)
             admin = User.query.filter_by(email=ADMIN_EMAIL).first()
             if not admin:
-                # Hash admin password
-                hashed_admin_password = generate_password_hash(ADMIN_PASSWORD)
-                admin = User(
-                    first_name="Admin",
-                    last_name="User",
-                    dob="2000-01-01",
-                    mobile="9999999999",
-                    email=ADMIN_EMAIL,
-                    username="Admin_No.1",
-                    password=hashed_admin_password,  # Store hashed password
-                    is_admin=True,
-                    gender="Male"
-                )
-                db.session.add(admin)
-                db.session.commit()
-                print(f"✅ Admin user created: {ADMIN_EMAIL}")
+                # Also check if username exists
+                admin_by_username = User.query.filter_by(username="Admin_No.1").first()
+                if admin_by_username:
+                    print(f"⚠️  Admin username 'Admin_No.1' already exists with email: {admin_by_username.email}")
+                else:
+                    try:
+                        # Hash admin password
+                        hashed_admin_password = generate_password_hash(ADMIN_PASSWORD)
+                        admin = User(
+                            first_name="Admin",
+                            last_name="User",
+                            dob="2000-01-01",
+                            mobile="9999999999",
+                            email=ADMIN_EMAIL,
+                            username="Admin_No.1",
+                            password=hashed_admin_password,  # Store hashed password
+                            is_admin=True,
+                            gender="Male"
+                        )
+                        db.session.add(admin)
+                        db.session.commit()
+                        print(f"✅ Admin user created: {ADMIN_EMAIL}")
+                    except Exception as e:
+                        db.session.rollback()
+                        print(f"⚠️  Could not create admin user: {e}")
+                        print(f"   Admin may already exist or there was a database error.")
 
             # Load all users into memory
             all_users = User.query.all()
@@ -461,9 +472,24 @@ def signup():
                 db.session.add(new_user)
                 db.session.commit()
                 return redirect(url_for('signin'))
+            except IntegrityError as e:
+                db.session.rollback()
+                # Handle unique constraint violations
+                error_str = str(e.orig).lower() if hasattr(e, 'orig') else str(e).lower()
+                if 'username' in error_str:
+                    message = "Username already exists. Please choose a different username."
+                    clear_username = True
+                elif 'email' in error_str:
+                    message = "Email already exists. Please use a different email."
+                    clear_email = True
+                elif 'mobile' in error_str:
+                    message = "Mobile number already exists. Please use a different mobile number."
+                    clear_mobile = True
+                else:
+                    message = "This information is already registered. Please check your details."
             except Exception as e:
                 db.session.rollback()
-                message = f"Error creating account: {str(e)}"
+                message = f"Error creating account: {str(e)}. Please try again."
 
     return render_template_string(r"""
     <!DOCTYPE html>
