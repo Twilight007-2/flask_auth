@@ -375,12 +375,46 @@ def signup():
                     message = f"Error saving file: {str(e)}"
                     filename = "default.png"
 
+        # Validation patterns
         pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&]).{8,}$'
         mobile_pattern = r'^[6-9]\d{9}$'
-        # Check database instead of users dictionary
-        mobile_exists = User.query.filter_by(mobile=mobile).first() is not None
-        email_exists = User.query.filter_by(email=email).first() is not None
-        username_exists = User.query.filter_by(username=username).first() is not None
+        
+        # Check database instead of users dictionary (only on POST)
+        try:
+            mobile_exists = User.query.filter_by(mobile=mobile).first() is not None
+            email_exists = User.query.filter_by(email=email).first() is not None
+            username_exists = User.query.filter_by(username=username).first() is not None
+        except Exception as e:
+            # If database query fails, show error
+            message = f"Database error: {str(e)}. Please try again later."
+            return render_template_string(r"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Sign Up - NeoLogin</title>
+                <style>
+                    *{ box-sizing: border-box; }
+                    body { font-family: Arial, sans-serif; margin:0; padding:0; 
+                           background-image: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80');
+                           background-size: cover; background-position: center; }
+                    .overlay { background-color: rgba(255,255,255,0.65); min-height: 100vh; 
+                               display:flex; flex-direction: column; align-items:center; justify-content:center; padding:20px;}
+                    .box { background:#f9f9f9; padding:40px; border-radius:8px; width:400px; }
+                    .msg { color:red; text-align:center; margin-top:10px; background: #ffe6e6; padding: 10px; border-radius: 8px; font-weight: bold; }
+                    .btn { display:inline-block; margin-top:15px; padding:10px 20px; background-color:#6f42c1; color:white; text-decoration:none; border-radius:5px; }
+                </style>
+            </head>
+            <body>
+                <div class="overlay">
+                    <div class="box">
+                        <h3>Sign Up</h3>
+                        <div class="msg">{{ error_message }}</div>
+                        <a href="{{ url_for('signup') }}" class="btn">← Try Again</a>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """, error_message=message)
 
         if not (fname and lname and dob and mobile and email and username and password and confirm_password):
             message = "All fields are required"
