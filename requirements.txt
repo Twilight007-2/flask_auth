@@ -1,5 +1,3 @@
 Flask
 Flask-SQLAlchemy
-Flask-Migrate
-Flask-Mail
-PyMySQL
+Flask-Mail   # if you use it
