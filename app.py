@@ -1,28 +1,29 @@
 import os
 import re
 import random
-from datetime import datetime
-from flask import Flask, render_template_string, request, redirect, url_for
+import urllib.parse
+from datetime import datetime, timedelta
+from flask import Flask, render_template_string, request, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
-from flask import session
-from datetime import datetime , timedelta
 from flask_migrate import upgrade, Migrate, init
 from flask_mail import Mail, Message
+from werkzeug.exceptions import RequestEntityTooLarge
 
 MAX_ATTEMPTS = 5
 LOCK_TIME = timedelta(minutes=10)
 
 app = Flask(__name__)
-app.secret_key = "neologin_secret"
+app.secret_key = os.environ.get('SECRET_KEY', 'neologin_secret_change_in_production')
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
-app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB limit
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'yourgmail@gmail.com'  # replace with your Gmail
-app.config['MAIL_PASSWORD'] = 'your_app_password'   # must be app password if 2FA enabled
-app.config['MAIL_DEFAULT_SENDER'] = 'yourgmail@gmail.com'
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB limit (increased for profile photos)
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB max file size for individual uploads
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True').lower() == 'true'
+app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL', 'False').lower() == 'true'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', 'yourgmail@gmail.com')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', 'your_app_password')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', os.environ.get('MAIL_USERNAME', 'yourgmail@gmail.com'))
 
 mail = Mail(app)
 
@@ -32,13 +33,37 @@ def generate_otp():
 os.makedirs(app.instance_path, exist_ok=True)
 os.makedirs('static/uploads', exist_ok=True)
 
-ADMIN_EMAIL = "admin@neologin.com"
-ADMIN_PASSWORD = "Admin@123"
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@neologin.com')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Admin@123')
 
 users = {}
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:qwertasdf1234%21%40%23%24@localhost:3306/neologin'
+
+# Database configuration with support for PostgreSQL (Render), MySQL, and SQLite
+# Priority: DATABASE_URL (Render PostgreSQL) > USE_MYSQL > SQLite
+database_url = os.environ.get('DATABASE_URL')
+
+if database_url:
+    # Render PostgreSQL or external database
+    # Replace postgres:// with postgresql:// for SQLAlchemy compatibility
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+elif os.environ.get('USE_MYSQL', 'false').lower() == 'true':
+    # MySQL configuration from environment variables
+    mysql_user = os.environ.get('MYSQL_USER', 'root')
+    mysql_password = os.environ.get('MYSQL_PASSWORD', '')
+    mysql_host = os.environ.get('MYSQL_HOST', 'localhost')
+    mysql_port = os.environ.get('MYSQL_PORT', '3306')
+    mysql_db = os.environ.get('MYSQL_DATABASE', 'neologin')
+    # URL encode password
+    mysql_password_encoded = urllib.parse.quote_plus(mysql_password)
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{mysql_user}:{mysql_password_encoded}@{mysql_host}:{mysql_port}/{mysql_db}'
+else:
+    # SQLite fallback for development (no server required)
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "neologin.db")}'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -83,37 +108,54 @@ class Task(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-with app.app_context():
-    db.create_all()
-    
-    with app.app_context():
-        admin = User.query.filter_by(email=ADMIN_EMAIL).first()
-        if not admin:
-            admin = User(
-                first_name="Admin",
-                last_name="User",
-                dob="2000-01-01",
-                mobile="9999999999",
-                email=ADMIN_EMAIL,
-                username="Admin_No.1",
-                password=ADMIN_PASSWORD,
-                is_admin=True,
-                gender="Male"
-            )
-            db.session.add(admin)
-            db.session.commit()
+# Initialize database with error handling
+def init_database():
+    """Initialize database tables and create admin user if needed."""
+    try:
+        with app.app_context():
+            db.create_all()
+            
+            # Create admin user if it doesn't exist
+            admin = User.query.filter_by(email=ADMIN_EMAIL).first()
+            if not admin:
+                admin = User(
+                    first_name="Admin",
+                    last_name="User",
+                    dob="2000-01-01",
+                    mobile="9999999999",
+                    email=ADMIN_EMAIL,
+                    username="Admin_No.1",
+                    password=ADMIN_PASSWORD,
+                    is_admin=True,
+                    gender="Male"
+                )
+                db.session.add(admin)
+                db.session.commit()
+                print(f"✅ Admin user created: {ADMIN_EMAIL}")
 
-    all_users = User.query.all()
-    for u in all_users:
-        users[u.username] = {
-            "first_name": u.first_name,
-            "last_name": u.last_name,
-            "dob": u.dob,
-            "mobile": u.mobile,
-            "email": u.email,
-            "username": u.username,
-            "password": u.password,
-        }
+            # Load all users into memory
+            all_users = User.query.all()
+            for u in all_users:
+                users[u.username] = {
+                    "first_name": u.first_name,
+                    "last_name": u.last_name,
+                    "dob": u.dob,
+                    "mobile": u.mobile,
+                    "email": u.email,
+                    "username": u.username,
+                    "password": u.password,
+                }
+            print(f"✅ Database initialized successfully. Loaded {len(users)} users.")
+            return True
+    except Exception as e:
+        print(f"⚠️  Warning: Could not initialize database: {e}")
+        print(f"   The app will continue to run, but database features may not work.")
+        print(f"   To use MySQL, set USE_MYSQL=true environment variable and ensure MySQL is running.")
+        print(f"   Currently using: {app.config['SQLALCHEMY_DATABASE_URI']}")
+        return False
+
+# Initialize database (non-blocking)
+init_database()
 def calculate_age(dob_str):
     try:
         dob = datetime.strptime(dob_str, "%Y-%m-%d")
@@ -121,6 +163,73 @@ def calculate_age(dob_str):
         return "INVALID_DOB"
     today = datetime.today()
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+# Error handler for Request Entity Too Large (413)
+@app.errorhandler(RequestEntityTooLarge)
+def handle_request_entity_too_large(e):
+    """Handle 413 Request Entity Too Large errors with user-friendly message."""
+    return render_template_string(r"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>File Too Large - NeoLogin</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                margin:0; padding:0; 
+                background-image: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80');
+                background-size: cover; 
+                background-position: center; 
+            }
+            .overlay { 
+                background-color: rgba(255,255,255,0.9); 
+                min-height:100vh; 
+                display:flex; 
+                flex-direction: column; 
+                align-items:center; 
+                justify-content:center; 
+                padding:20px;
+            }
+            .error-box { 
+                background:#fff; 
+                padding:40px; 
+                border-radius:10px; 
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                max-width:500px;
+                text-align:center;
+            }
+            h1 { color:#d32f2f; margin-bottom:20px; }
+            p { color:#666; margin-bottom:30px; line-height:1.6; }
+            .btn { 
+                display:inline-block;
+                padding:12px 30px; 
+                background-color:#6f42c1; 
+                color:white; 
+                text-decoration:none; 
+                border-radius:5px; 
+                font-weight:bold;
+                transition: background-color 0.3s;
+            }
+            .btn:hover { background-color:#532d91; }
+        </style>
+    </head>
+    <body>
+        <div class="overlay">
+            <div class="error-box">
+                <h1>⚠️ File Too Large</h1>
+                <p>
+                    The file you tried to upload is too large. 
+                    Please ensure your profile photo is less than <strong>5MB</strong> in size.
+                </p>
+                <p style="font-size:14px; color:#999;">
+                    Supported formats: JPG, PNG, GIF
+                </p>
+                <a href="{{ url_for('signup') }}" class="btn">← Go Back to Sign Up</a>
+            </div>
+        </div>
+    </body>
+    </html>
+    """), 413
 
 # Home Page
 @app.route("/")
@@ -213,8 +322,55 @@ def signup():
         filename = "default.png"
 
         if photo and photo.filename != "":
-            filename = f"{username}_{photo.filename}"
-            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            # Validate file size
+            photo.seek(0, os.SEEK_END)
+            file_size = photo.tell()
+            photo.seek(0)  # Reset file pointer
+            
+            if file_size > MAX_FILE_SIZE:
+                message = f"Profile photo is too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB. Your file is {file_size / (1024 * 1024):.2f}MB."
+                return render_template_string(r"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Sign Up - NeoLogin</title>
+                    <style>
+                        *{ box-sizing: border-box; }
+                        body { font-family: Arial, sans-serif; margin:0; padding:0; 
+                               background-image: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80');
+                               background-size: cover; background-position: center; }
+                        .overlay { background-color: rgba(255,255,255,0.65); min-height: 100vh; 
+                                   display:flex; flex-direction: column; align-items:center; justify-content:center; padding:20px;}
+                        .box { background:#f9f9f9; padding:40px; border-radius:8px; width:400px; }
+                        .msg { color:red; text-align:center; margin-top:10px; background: #ffe6e6; padding: 10px; border-radius: 8px; font-weight: bold; }
+                        .btn { display:inline-block; margin-top:15px; padding:10px 20px; background-color:#6f42c1; color:white; text-decoration:none; border-radius:5px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="overlay">
+                        <div class="box">
+                            <h3>Sign Up</h3>
+                            <div class="msg">{{ error_message }}</div>
+                            <a href="{{ url_for('signup') }}" class="btn">← Try Again</a>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """, error_message=message)
+            
+            # Validate file extension
+            allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
+            file_ext = photo.filename.rsplit('.', 1)[1].lower() if '.' in photo.filename else ''
+            if file_ext not in allowed_extensions:
+                message = "Invalid file type. Please upload an image file (PNG, JPG, JPEG, or GIF)."
+                clear_fname = True
+            else:
+                filename = f"{username}_{photo.filename}"
+                try:
+                    photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                except Exception as e:
+                    message = f"Error saving file: {str(e)}"
+                    filename = "default.png"
 
         pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&]).{8,}$'
         mobile_pattern = r'^[6-9]\d{9}$'
@@ -273,7 +429,7 @@ def signup():
             }
             return redirect(url_for('signin'))
 
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -1342,7 +1498,6 @@ def dashboard(email):
     """, user=user, full_name=full_name, age=age)
 
 # ================= USER TASKS PAGE =================
-from flask import flash
 
 @app.route("/view-tasks", methods=["GET", "POST"])
 def view_tasks():

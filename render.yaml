@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: neologin
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.4
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: admin@neologin.com
+      - key: ADMIN_PASSWORD
+        value: Admin@123
+    # Uncomment and configure if using email features
+    # - key: MAIL_USERNAME
+    #   value: yourgmail@gmail.com
+    # - key: MAIL_PASSWORD
+    #   value: your_app_password
+    # - key: MAIL_DEFAULT_SENDER
+    #   value: yourgmail@gmail.com
+
