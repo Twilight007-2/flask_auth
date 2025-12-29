@@ -8,6 +8,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import upgrade, Migrate, init
 from flask_mail import Mail, Message
 from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.security import generate_password_hash, check_password_hash
 
 MAX_ATTEMPTS = 5
 LOCK_TIME = timedelta(minutes=10)
@@ -118,6 +119,8 @@ def init_database():
             # Create admin user if it doesn't exist
             admin = User.query.filter_by(email=ADMIN_EMAIL).first()
             if not admin:
+                # Hash admin password
+                hashed_admin_password = generate_password_hash(ADMIN_PASSWORD)
                 admin = User(
                     first_name="Admin",
                     last_name="User",
@@ -125,7 +128,7 @@ def init_database():
                     mobile="9999999999",
                     email=ADMIN_EMAIL,
                     username="Admin_No.1",
-                    password=ADMIN_PASSWORD,
+                    password=hashed_admin_password,  # Store hashed password
                     is_admin=True,
                     gender="Male"
                 )
@@ -374,14 +377,19 @@ def signup():
 
         pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&]).{8,}$'
         mobile_pattern = r'^[6-9]\d{9}$'
-        mobile_exists = any(u["mobile"] == mobile for u in users.values())
-        email_exists = any(u["email"] == email for u in users.values())
+        # Check database instead of users dictionary
+        mobile_exists = User.query.filter_by(mobile=mobile).first() is not None
+        email_exists = User.query.filter_by(email=email).first() is not None
+        username_exists = User.query.filter_by(username=username).first() is not None
 
         if not (fname and lname and dob and mobile and email and username and password and confirm_password):
             message = "All fields are required"
         elif not re.match(mobile_pattern, mobile):
             message = "Mobile number must be 10 digits and start with 6, 7, 8, or 9"
             clear_mobile = True
+        elif username_exists:
+            message = "Username already exists"
+            clear_username = True
         elif mobile_exists and email_exists:
             message = "Mobile number and Email ID already exist"
             clear_email = True
@@ -399,35 +407,29 @@ def signup():
             message = "Passwords do not match"
             clear_password = True
         else:
-            new_user = User(
-                first_name=fname,
-                last_name=lname,
-                dob=dob,
-                mobile=mobile,
-                email=email,
-                username=username,
-                password=password,
-                profile_photo=filename,
-                gender=gender, # save in DB
-                failed_attempts = 0,
-                lock_until = None
-            )
+            try:
+                # Hash the password before storing
+                hashed_password = generate_password_hash(password)
+                new_user = User(
+                    first_name=fname,
+                    last_name=lname,
+                    dob=dob,
+                    mobile=mobile,
+                    email=email,
+                    username=username,
+                    password=hashed_password,  # Store hashed password
+                    profile_photo=filename,
+                    gender=gender,
+                    failed_attempts=0,
+                    lock_until=None
+                )
 
-            db.session.add(new_user)
-            db.session.commit()
-
-            users[username] = {
-                "first_name": fname,
-                "last_name": lname,
-                "dob": dob,
-                "mobile": mobile,
-                "email": email,
-                "username": username,
-                "password": password,
-                "gender": gender,  # store in dictionary
-                
-            }
-            return redirect(url_for('signin'))
+                db.session.add(new_user)
+                db.session.commit()
+                return redirect(url_for('signin'))
+            except Exception as e:
+                db.session.rollback()
+                message = f"Error creating account: {str(e)}"
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -514,7 +516,7 @@ def signup():
                 // Mobile & Email validation
                 const mobileInput = document.getElementById('mobile');
                 const emailInput = document.querySelector('input[name="email"]');
-                const existingEmails = {{ users.values() | map(attribute='email') | list | tojson }};
+                const existingEmails = [];  // Client-side validation removed - server will validate
                 mobileInput.addEventListener('blur', function() {
                     const mobilePattern = /^[6-9]\d{9}$/;
                     if (!mobilePattern.test(mobileInput.value) && mobileInput.value.length > 0) {
@@ -597,8 +599,7 @@ def signup():
     </body>
     </html>
     """, message=message, clear_mobile=clear_mobile, clear_email=clear_email, clear_password=clear_password,
-       clear_dob=clear_dob, clear_fname=clear_fname, clear_lname=clear_lname, clear_username=clear_username,
-       users=users)
+       clear_dob=clear_dob, clear_fname=clear_fname, clear_lname=clear_lname, clear_username=clear_username)
 
 
 # Sign In Page
@@ -685,8 +686,8 @@ def signin():
     </body>
     </html>
     """, message=message)
-            # 2️⃣ Password check
-            if user.password == password:
+            # 2️⃣ Password check (compare hashed password)
+            if check_password_hash(user.password, password):
                 # ✅ Successful login
                 user.failed_attempts = 0
                 user.lock_until = None
@@ -1237,17 +1238,30 @@ def make_admin(user_id):
 # Dashboard/Profile Page
 @app.route("/dashboard/<email>")
 def dashboard(email):
-    # Find the user by email
-    user_found = None
-    for u in users.values():
-        if u["email"] == email:
-            user_found = u
-            break
-
-    if not user_found:
+    # Check if user is logged in
+    if not session.get("logged_in"):
         return redirect(url_for('signin'))
-
-    user = user_found
+    
+    # Verify the email matches the logged-in user
+    if session.get("user_email") != email:
+        return redirect(url_for('signin'))
+    
+    # Get user from database
+    user_db = User.query.filter_by(email=email).first()
+    if not user_db:
+        return redirect(url_for('signin'))
+    
+    # Convert database user to dictionary format for template
+    user = {
+        "first_name": user_db.first_name,
+        "last_name": user_db.last_name,
+        "dob": user_db.dob,
+        "mobile": user_db.mobile,
+        "email": user_db.email,
+        "username": user_db.username,
+        "profile_photo": user_db.profile_photo,
+        "gender": user_db.gender
+    }
 
     age = calculate_age(user["dob"])
     if age == "INVALID_DOB":
@@ -1430,7 +1444,7 @@ def dashboard(email):
             <div class="dashboard">
                 <div style="position: relative; text-align:center; margin-bottom:20px;">
                     <!-- Profile Picture -->
-                    <img src="{{ url_for('static', filename='profile_photos/' + user['profile_photo']) if user.get('profile_photo') else url_for('static', filename='profile_photos/default.png') }}"
+                    <img src="{{ url_for('static', filename='uploads/' + user['profile_photo']) if user.get('profile_photo') and user['profile_photo'] != 'default.png' else url_for('static', filename='uploads/default.png') }}"
                         alt="Profile Photo"
                         class="profile-pic"
                         style="width:120px; height:120px; border-radius:50%; object-fit:cover; border:3px solid #6f42c1; background:#ccc;">
