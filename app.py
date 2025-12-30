@@ -2938,14 +2938,13 @@ def view_tasks():
     
     # Handle admin users
     if is_admin:
-        user_obj = get_admin_by_email(user_email)
-        if not user_obj:
+        admin_obj = get_admin_by_email(user_email)
+        if not admin_obj:
             return redirect(url_for("signin"))
         # Create a user_obj-like structure for admin
         user_obj = {
-            'email': user_obj.get('email', ''),
-            'username': 'admin',
-            'email': user_email
+            'email': user_email,
+            'username': 'admin'
         }
     else:
         # Handle regular users
