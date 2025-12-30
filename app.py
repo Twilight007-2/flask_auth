@@ -100,21 +100,40 @@ try:
     with app.app_context():
         db.create_all()
         
-        # Create admin user if it doesn't exist
-        admin = User.query.filter_by(email=ADMIN_EMAIL).first()
-        if not admin:
-            admin = User(
-                first_name="Admin",
-                last_name="User",
-                dob="2000-01-01",
-                mobile="9999999999",
-                email=ADMIN_EMAIL,
-                username="Admin_No.1",
-                password=ADMIN_PASSWORD,
-                is_admin=True,
-                gender="Male"
-            )
-            db.session.add(admin)
+        # Create admin user if it doesn't exist (check by both email and username)
+        admin_by_email = User.query.filter_by(email=ADMIN_EMAIL).first()
+        admin_by_username = User.query.filter_by(username="Admin_No.1").first()
+        
+        if not admin_by_email and not admin_by_username:
+            try:
+                admin = User(
+                    first_name="Admin",
+                    last_name="User",
+                    dob="2000-01-01",
+                    mobile="9999999999",
+                    email=ADMIN_EMAIL,
+                    username="Admin_No.1",
+                    password=generate_password_hash(ADMIN_PASSWORD),
+                    is_admin=True,
+                    gender="Male"
+                )
+                db.session.add(admin)
+                db.session.commit()
+                print(f"✅ Admin user created successfully.")
+            except IntegrityError as ie:
+                db.session.rollback()
+                print(f"⚠️  Admin user already exists (IntegrityError: {ie}). Skipping creation.")
+        elif admin_by_email:
+            # Ensure admin user has correct password hash
+            if not admin_by_email.password.startswith('$2b$') and not admin_by_email.password.startswith('$2a$'):
+                admin_by_email.password = generate_password_hash(ADMIN_PASSWORD)
+                db.session.commit()
+        elif admin_by_username:
+            # Admin exists by username but not email - update email
+            admin_by_username.email = ADMIN_EMAIL
+            admin_by_username.is_admin = True
+            if not admin_by_username.password.startswith('$2b$') and not admin_by_username.password.startswith('$2a$'):
+                admin_by_username.password = generate_password_hash(ADMIN_PASSWORD)
             db.session.commit()
 
         # Load all users into memory
