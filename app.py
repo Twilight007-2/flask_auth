@@ -592,19 +592,33 @@ def signup():
         filename = "default.png"
 
         if photo and photo.filename != "":
-            filename = f"{username}_{photo.filename}"
-            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            from werkzeug.utils import secure_filename
+            # Use secure_filename to prevent path traversal and special characters
+            original_filename = secure_filename(photo.filename)
+            # Create unique filename with username and timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_ext = os.path.splitext(original_filename)[1] or '.png'
+            filename = f"{username}_{timestamp}{file_ext}"
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            # Ensure upload folder exists
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            photo.save(filepath)
 
         pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&]).{8,}$'
         mobile_pattern = r'^[6-9]\d{9}$'
-        mobile_exists = any(u["mobile"] == mobile for u in users.values())
-        email_exists = any(u["email"] == email for u in users.values())
+        # Check database for existing users instead of in-memory dictionary
+        mobile_exists = User.query.filter_by(mobile=mobile).first() is not None
+        email_exists = User.query.filter_by(email=email).first() is not None
+        username_exists = User.query.filter_by(username=username).first() is not None
 
         if not (fname and lname and dob and mobile and email and username and password and confirm_password):
             message = "All fields are required"
         elif not re.match(mobile_pattern, mobile):
             message = "Mobile number must be 10 digits and start with 6, 7, 8, or 9"
             clear_mobile = True
+        elif username_exists:
+            message = "Username already exists"
+            clear_username = True
         elif mobile_exists and email_exists:
             message = "Mobile number and Email ID already exist"
             clear_email = True
@@ -636,21 +650,36 @@ def signup():
                 lock_until = None
             )
 
-            db.session.add(new_user)
-            db.session.commit()
-
-            users[username] = {
-                "first_name": fname,
-                "last_name": lname,
-                "dob": dob,
-                "mobile": mobile,
-                "email": email,
-                "username": username,
-                "password": password,
-                "gender": gender,  # store in dictionary
+            try:
+                db.session.add(new_user)
+                db.session.commit()
                 
-            }
-            return redirect(url_for('signin'))
+                # Update in-memory dictionary (optional, for backward compatibility)
+                users[username] = {
+                    "first_name": fname,
+                    "last_name": lname,
+                    "dob": dob,
+                    "mobile": mobile,
+                    "email": email,
+                    "username": username,
+                    "password": password,
+                    "profile_photo": filename,
+                    "gender": gender,
+                }
+                return redirect(url_for('signin'))
+            except IntegrityError as e:
+                db.session.rollback()
+                if "username" in str(e).lower():
+                    message = "Username already exists"
+                    clear_username = True
+                elif "email" in str(e).lower():
+                    message = "Email ID already exists"
+                    clear_email = True
+                elif "mobile" in str(e).lower():
+                    message = "Mobile number already exists"
+                    clear_mobile = True
+                else:
+                    message = "Registration failed. Please try again."
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -2458,9 +2487,16 @@ def dashboard(email):
             <div class="dashboard-card">
                 <div class="profile-section">
                     <div class="profile-picture-container">
-                        <img src="{{ url_for('static', filename='uploads/' + user['profile_photo']) if user.get('profile_photo') and user['profile_photo'] != 'default.png' else url_for('static', filename='uploads/default.png') }}"
-                            alt="Profile Photo"
-                            class="profile-pic">
+                        {% if user.get('profile_photo') and user['profile_photo'] != 'default.png' %}
+                            <img src="{{ url_for('static', filename='uploads/' + user['profile_photo']) }}"
+                                alt="Profile Photo"
+                                class="profile-pic"
+                                onerror="this.src='{{ url_for('static', filename='uploads/default.png') }}';">
+                        {% else %}
+                            <img src="{{ url_for('static', filename='uploads/default.png') }}"
+                                alt="Profile Photo"
+                                class="profile-pic">
+                        {% endif %}
                         <form action="{{ url_for('update_profile_photo', email=user['email']) }}" method="POST" enctype="multipart/form-data" class="profile-form">
                             <input type="file" name="profile_photo" id="profile_photo" accept="image/*" required>
                             <button type="submit" class="upload-btn">Upload Photo</button>
@@ -3047,42 +3083,52 @@ def post_task():
 
 @app.route("/update-profile-photo/<email>", methods=["POST"])
 def update_profile_photo(email):
-    # Find the user by email
-    user_found = None
-    for u in users.values():
-        if u["email"] == email:
-            user_found = u
-            break
+    # Check if user is logged in
+    if not session.get("logged_in"):
+        return redirect(url_for('signin'))
+    
+    # Verify the email matches the logged-in user
+    if session.get("user_email") != email:
+        return redirect(url_for('signin'))
 
-    if not user_found:
+    # Get user from database
+    user_obj = User.query.filter_by(email=email).first()
+    if not user_obj:
         return redirect(url_for('signin'))
 
     if "profile_photo" not in request.files or request.files["profile_photo"].filename == "":
         return "No file selected", 400
 
     file = request.files["profile_photo"]
-    os.makedirs("static/profile_photos", exist_ok=True)
+    
+    # Use the same upload folder as signup
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-    # Save file securely with user id prefix
-    user_obj = User.query.filter_by(email=email).first()
-    if user_obj:
-        from werkzeug.utils import secure_filename
-        filename = secure_filename(f"User_{user_obj.id}_{file.filename}")
-        filepath = os.path.join("static/profile_photos", filename)
-        file.save(filepath)
+    # Save file securely with user id and timestamp
+    from werkzeug.utils import secure_filename
+    original_filename = secure_filename(file.filename)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_ext = os.path.splitext(original_filename)[1] or '.png'
+    filename = f"{user_obj.username}_{timestamp}{file_ext}"
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
 
-        # Delete old photo if exists and not default
-        if user_obj.profile_photo and user_obj.profile_photo != "default.png":
-            old_path = os.path.join("static/profile_photos", user_obj.profile_photo)
-            if os.path.exists(old_path):
+    # Delete old photo if exists and not default
+    if user_obj.profile_photo and user_obj.profile_photo != "default.png":
+        old_path = os.path.join(app.config['UPLOAD_FOLDER'], user_obj.profile_photo)
+        if os.path.exists(old_path):
+            try:
                 os.remove(old_path)
+            except Exception as e:
+                print(f"Warning: Could not delete old photo {old_path}: {e}")
 
-        # Update DB
-        user_obj.profile_photo = filename
-        db.session.commit()
+    # Update DB
+    user_obj.profile_photo = filename
+    db.session.commit()
 
-        # Update in-memory dictionary
-        user_found['profile_photo'] = filename
+    # Update in-memory dictionary if it exists
+    if user_obj.username in users:
+        users[user_obj.username]['profile_photo'] = filename
 
     return redirect(url_for("dashboard", email=email))
 
