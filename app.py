@@ -33,15 +33,95 @@ def generate_otp():
 os.makedirs(app.instance_path, exist_ok=True)
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-ADMIN_EMAIL = "swamythk07@gmail.com"
-ADMIN_PASSWORD = "Admin@123"
-
 users = {}
+
+# ================= ADMIN DATABASE FUNCTIONS =================
+def load_admin():
+    """Load admin credentials from JSON file."""
+    admin_file = os.path.join(basedir, ADMIN_DB_FILE)
+    if not os.path.exists(admin_file):
+        # Create default admin if file doesn't exist
+        default_admin = {
+            'email': 'swamythk07@gmail.com',
+            'password': generate_password_hash('Admin@123'),
+            'created_at': datetime.utcnow().isoformat()
+        }
+        save_admin(default_admin)
+        return default_admin
+    
+    try:
+        with open(admin_file, 'r', encoding='utf-8') as f:
+            admin_data = json.load(f)
+            # Ensure password is hashed (if it's plain text or placeholder, hash it)
+            admin_password = admin_data.get('password', '')
+            if not admin_password or admin_password == 'scrypt:32768:8:1$default$default' or not (
+                admin_password.startswith('$2b$') or
+                admin_password.startswith('$2a$') or
+                admin_password.startswith('pbkdf2:') or
+                admin_password.startswith('scrypt:')
+            ):
+                # Password is not properly hashed, hash it now
+                admin_data['password'] = generate_password_hash('Admin@123')
+                save_admin(admin_data)
+            return admin_data
+    except Exception as e:
+        print(f"Error loading admin: {e}")
+        # Create default admin on error
+        default_admin = {
+            'email': 'swamythk07@gmail.com',
+            'password': generate_password_hash('Admin@123'),
+            'created_at': datetime.utcnow().isoformat()
+        }
+        save_admin(default_admin)
+        return default_admin
+
+def save_admin(admin_data):
+    """Save admin credentials to JSON file."""
+    try:
+        admin_file = os.path.join(basedir, ADMIN_DB_FILE)
+        with open(admin_file, 'w', encoding='utf-8') as f:
+            json.dump(admin_data, f, indent=4, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"Error saving admin: {e}")
+        return False
+
+def get_admin_by_email(email):
+    """Get admin by email."""
+    admin_data = load_admin()
+    if admin_data and admin_data.get('email') == email:
+        return admin_data
+    return None
+
+def verify_admin_password(email, password):
+    """Verify admin password."""
+    admin = get_admin_by_email(email)
+    if not admin:
+        return False
+    
+    admin_password = admin.get('password', '')
+    if not admin_password:
+        return False
+    
+    # Check if password is hashed
+    is_hashed = (
+        admin_password.startswith('$2b$') or
+        admin_password.startswith('$2a$') or
+        admin_password.startswith('pbkdf2:') or
+        admin_password.startswith('scrypt:')
+    )
+    
+    if is_hashed:
+        return check_password_hash(admin_password, password)
+    else:
+        # Plain text comparison (for backward compatibility)
+        return admin_password == password
 
 # Simple JSON-based database files
 DB_FILE = os.path.join(basedir, "users_db.json")
 JSON_DB_FILE = 'users_db.json'
 TASKS_DB_FILE = 'tasks_db.json'
+ADMIN_DB_FILE = 'admin_db.json'
 
 # Simple Database Functions
 def load_users():
@@ -1168,6 +1248,17 @@ def signin():
         identifier = request.form.get("identifier", "").strip()
         password = request.form.get("password", "").strip()
 
+        # Check if it's admin login first
+        admin = get_admin_by_email(identifier)
+        if admin and verify_admin_password(identifier, password):
+            # ✅ Admin login successful
+            session['logged_in'] = True
+            session['user_email'] = admin.get('email', '')
+            session['username'] = 'admin'
+            session['is_admin'] = True
+            return redirect(url_for('admin_menu'))
+        
+        # Check regular user login
         try:
             # Try email first, then mobile
             user = get_user_by_email(identifier)
@@ -1233,6 +1324,7 @@ def signin():
                 session['logged_in'] = True
                 session['user_email'] = user.get('email', '')
                 session['username'] = user.get('username', '')
+                session['is_admin'] = False
                 return redirect(url_for('dashboard', email=user.get('email', '')))
             else:
                 # Failed login attempt
