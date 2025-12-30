@@ -2543,8 +2543,8 @@ def dashboard(email):
                             <img src="{{ url_for('static', filename='uploads/' + profile_img) }}"
                                 alt="Profile Photo"
                                 class="profile-pic"
-                                onerror="this.onerror=null; this.style.display='none'; var fallback = document.getElementById('profile-fallback-{{ user.get('username', '') }}'); if(fallback) fallback.style.display='flex';">
-                            <div id="profile-fallback-{{ user.get('username', '') }}" class="profile-pic-fallback" style="display:none;">👤</div>
+                                onerror="this.onerror=null; this.style.display='none'; var fallback = this.nextElementSibling; if(fallback) { fallback.style.display='flex'; }">
+                            <div class="profile-pic-fallback" style="display:none;">👤</div>
                         {% else %}
                             <div class="profile-pic-fallback">👤</div>
                         {% endif %}
