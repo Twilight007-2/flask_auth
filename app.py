@@ -2666,6 +2666,10 @@ def view_tasks():
             <div class="task-box">
 
                 <h2>Available Tasks</h2>
+                {% if message %}
+                    <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">{{ message }}</div>
+                {% endif %}
+                {% if tasks %}
                 <table>
                     <tr>
                         <th>ID</th>
@@ -2677,12 +2681,12 @@ def view_tasks():
                     </tr>
                     {% for t in tasks %}
                     <tr>
-                    <td>{{ t.get('id', '') }}</td>
-                    <td>{{ t.get('title', '') }}</td>
-                    <td>{{ t.get('description', '') }}</td>
-                    <td>{{ t.get('reward', '') }}</td>
-                    <td>{{ t.get('status', '') }}</td>
-                    <td>
+                        <td>{{ t.get('id', '') }}</td>
+                        <td>{{ t.get('title', '') }}</td>
+                        <td>{{ t.get('description', '') }}</td>
+                        <td>{{ t.get('reward', '') }}</td>
+                        <td>{{ t.get('status', '') }}</td>
+                        <td>
                             {% if t.get('status') == 'approved' and not t.get('assigned_to') %}
                                 <a href="{{ url_for('accept_task', task_id=t.get('id', '')) }}" class="accept-btn">
                                     Accept Task
