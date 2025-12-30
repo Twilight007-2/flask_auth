@@ -2264,6 +2264,211 @@ def dashboard(email):
     if session.get("user_email") != email:
         return redirect(url_for('signin'))
 
+    # Check if admin (admin doesn't have user record)
+    if session.get("is_admin"):
+        # Admin dashboard - show admin info
+        admin_data = get_admin_by_email(email)
+        if admin_data:
+            user = {
+                "email": admin_data.get('email', ''),
+                "username": "admin",
+                "mobile": "N/A",
+                "first_name": "Admin",
+                "last_name": "",
+                "dob": "",
+                "gender": "",
+                "profile_photo": ""
+            }
+            full_name = "Admin"
+            return render_template_string(r"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Admin Dashboard - NeoLogin</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: 'Poppins', sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 20px;
+                position: relative;
+                overflow-x: hidden;
+            }
+
+            body::before {
+                content: '';
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80') center/cover;
+                opacity: 0.1;
+                z-index: -1;
+            }
+
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+
+            .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 30px;
+                flex-wrap: wrap;
+                gap: 15px;
+            }
+
+            .logo {
+                font-size: 32px;
+                font-weight: 700;
+                color: white;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            }
+
+            .header-actions {
+                display: flex;
+                gap: 15px;
+                flex-wrap: wrap;
+            }
+
+            .btn-header {
+                padding: 12px 24px;
+                background: rgba(255, 255, 255, 0.2);
+                backdrop-filter: blur(10px);
+                color: white;
+                text-decoration: none;
+                border-radius: 25px;
+                font-weight: 500;
+                transition: all 0.3s ease;
+                border: 2px solid rgba(255, 255, 255, 0.3);
+            }
+
+            .btn-header:hover {
+                background: rgba(255, 255, 255, 0.3);
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            }
+
+            .dashboard-card {
+                background: white;
+                border-radius: 20px;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                overflow: hidden;
+                animation: slideUp 0.6s ease;
+                padding: 40px;
+                text-align: center;
+            }
+
+            @keyframes slideUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .welcome-text {
+                font-size: 32px;
+                font-weight: 600;
+                color: #667eea;
+                margin-bottom: 30px;
+            }
+
+            .action-buttons {
+                display: flex;
+                gap: 15px;
+                flex-wrap: wrap;
+                justify-content: center;
+                margin-top: 30px;
+            }
+
+            .btn-action {
+                padding: 15px 35px;
+                border: none;
+                border-radius: 25px;
+                font-size: 16px;
+                font-weight: 600;
+                text-decoration: none;
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                transition: all 0.3s ease;
+                cursor: pointer;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            }
+
+            .btn-tasks {
+                background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+                color: white;
+            }
+
+            .btn-tasks:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 8px 25px rgba(17, 153, 142, 0.4);
+            }
+
+            .btn-logout {
+                background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+                color: white;
+            }
+
+            .btn-logout:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 8px 25px rgba(235, 51, 73, 0.4);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="logo">✨ NeoLogin Admin</div>
+                <div class="header-actions">
+                    <a href="{{ url_for('admin_menu') }}" class="btn-header">⚙️ Admin Menu</a>
+                </div>
+            </div>
+
+            <div class="dashboard-card">
+                <div class="welcome-text">Welcome, Admin!</div>
+                <p style="font-size: 18px; color: #666; margin-bottom: 30px;">You are logged in as an administrator.</p>
+                
+                <div class="action-buttons">
+                    <a href="{{ url_for('admin_menu') }}" class="btn-action btn-tasks">
+                        ⚙️ Admin Menu
+                    </a>
+                    <a href="{{ url_for('view_users') }}" class="btn-action btn-tasks">
+                        👥 View Users
+                    </a>
+                    <a href="{{ url_for('view_tasks') }}" class="btn-action btn-tasks">
+                        📋 View Tasks
+                    </a>
+                    <a href="{{ url_for('admin_task_management') }}" class="btn-action btn-tasks">
+                        🛠️ Task Management
+                    </a>
+                    <a href="{{ url_for('logout') }}" class="btn-action btn-logout">
+                        🚪 Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """)
+    
     # Get user from database
     user_db = get_user_by_email(email)
     if not user_db:
@@ -3305,12 +3510,12 @@ def view_users():
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
 
-    # Get all users from Firestore
-    all_users_docs = db.collection('users').stream() if db else []
+    # Get all users from JSON database
+    users_data = load_users()
     all_users = []
-    for doc in all_users_docs:
-        user_data = doc.to_dict()
-        user_data['id'] = doc.id
+    for username, user_data in users_data.items():
+        user_data['id'] = username  # Use username as ID
+        user_data['username'] = username
         all_users.append(user_data)
 
     return render_template_string(r"""
@@ -3471,91 +3676,42 @@ def view_users():
         </tr>
     {% for u in users %}
     <tr>
-        <td>{{ u.get('id', '') }}</td>
+        <td>{{ u.get('id', u.get('username', '')) }}</td>
         <!-- First Name -->
         <td>
-            <form method="POST" action="{{ url_for('update_name', user_id=u.get('id', '')) }}">
-                <input type="text"
-                        name="first_name"
-                        value="{{ u.get('first_name', '') }}"
-                        class="username-input"
-                        disabled>
-                <span class="pen" onclick="enableEdit(this)">✏️</span>
-                <button type="submit" class="save-btn">💾</button>
-            </form>
+            {{ u.get('first_name', 'Not set') }}
         </td>
         <td>
-            <form method="POST" action="{{ url_for('update_name', user_id=u.get('id', '')) }}">
-                <input type="text"
-                        name="last_name"
-                        value="{{ u.get('last_name', '') }}"
-                        class="username-input"
-                        disabled>
-                <span class="pen" onclick="enableEdit(this)">✏️</span>
-                <button type="submit" class="save-btn">💾</button>
-            </form>
+            {{ u.get('last_name', 'Not set') }}
         </td>
-        <td>{{ u.email }}</td>
-        <td>{{ u.mobile }}</td>
+        <td>{{ u.get('email', '') }}</td>
+        <td>{{ u.get('mobile', 'Not set') }}</td>
         <!-- Username -->
         <td>
-            <form method="POST"
-                action="{{ url_for('update_username', user_id=u.get('id', '')) }}">
-                <input type="text"
-                        name="username"
-                        value="{{ u.username }}"
-                        class="username-input"
-                        disabled>
-                <span class="pen" onclick="enableEdit(this)">✏️</span>
-                <button type="submit" class="save-btn">💾</button>
-            </form>
+            {{ u.get('username', u.get('id', '')) }}
         </td>
         <!-- GENDER -->
         <td>
-            <form method="POST" action="{{ url_for('update_gender', user_id=u.get('id', '')) }}">
-                <select name="gender" class="username-input" disabled>
-                    <option value="Male" {% if u.get('gender') == 'Male' %}selected{% endif %}>Male</option>
-                    <option value="Female" {% if u.get('gender') == 'Female' %}selected{% endif %}>Female</option>
-                    <option value="Other" {% if u.get('gender') == 'Other' %}selected{% endif %}>Other</option>
-                </select>
-                <span class="pen" onclick="enableEdit(this)">✏️</span>
-                <button type="submit" class="save-btn">💾</button>
-            </form>
+            {{ u.get('gender', 'Not set') }}
         </td>
         <!-- ROLE -->
         <td>
-            {% if u.get('is_admin', False) %}
-                <b style="color:green;">ADMIN</b>
-            {% else %}
-                USER
-            {% endif %}
+            USER
         </td>
         <!-- ADMIN ACTION -->
         <td>
-            {% if not u.get('is_admin', False) %}
-                <a href="{{ url_for('make_admin', user_id=u.get('id', '')) }}"
-                    onclick="return confirm('Make this user an admin?')">
-                    👑 Make Admin 👑
-                </a>
-            {% elif u.get('is_admin', False) and u.get('email', '') != session.get('user_email') %}
-                <a href="{{ url_for('remove_admin', user_id=u.get('id', '')) }}"
-                    onclick="return confirm('Remove admin rights from this user?')">
-                    🚫 Remove Admin 🚫
-                    </a>
-                {% else %}
-                        —  <!-- current admin cannot remove self -->
-                {% endif %}
-            </td>
-            <!-- Edit -->
-            <td>—</td>
-            <!-- Delete -->
-            <td>
-                <a class="delete"
-                    href="{{ url_for('delete_user', user_id=u.id) }}"
-                    onclick="return confirm('Are you sure you want to delete this user?')">
-                    ❌
-                </a>
-            </td>
+            —  <!-- Admin management removed for JSON DB -->
+        </td>
+        <!-- Edit -->
+        <td>—</td>
+        <!-- Delete -->
+        <td>
+            <a class="delete"
+                href="{{ url_for('delete_user', user_id=u.get('id', u.get('username', ''))) }}"
+                onclick="return confirm('Are you sure you want to delete this user?')">
+                ❌
+            </a>
+        </td>
         </tr>
         {% endfor %}
     </table>
@@ -3664,21 +3820,19 @@ def update_recovery(user_id):
     return redirect(url_for("view_users"))
 
 # ================= DELETE USER (ADMIN ONLY) =================
-@app.route("/delete-user/<int:user_id>")
+@app.route("/delete-user/<user_id>")
 def delete_user(user_id):
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
 
-    user = get_user_by_id(str(user_id))
-    
-    if user:
-        # Delete from Firestore
-        if db:
-            db.collection('users').document(user['id']).delete()
+    # Delete from JSON database (user_id is username in JSON DB)
+    users_data = load_users()
+    if user_id in users_data:
+        users_data.pop(user_id, None)
+        save_users(users_data)
         # Remove from in-memory dict
-        username = user.get('username', '')
-        if username in users:
-            users.pop(username, None)
+        if user_id in users:
+            users.pop(user_id, None)
 
     return redirect(url_for("view_users"))
 
@@ -3832,13 +3986,10 @@ def admin_tasks():
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
 
-    # Get all tasks from Firestore ordered by ID descending
-    all_tasks_docs = db.collection('tasks').order_by('__name__', direction=firestore.Query.DESCENDING).stream() if db else []
-    all_tasks = []
-    for doc in all_tasks_docs:
-        task_data = doc.to_dict()
-        task_data['id'] = doc.id
-        all_tasks.append(task_data)
+    # Get all tasks from JSON database
+    all_tasks = query_tasks()
+    # Sort by created_at descending if available
+    all_tasks.sort(key=lambda x: x.get('created_at', ''), reverse=True)
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -3912,18 +4063,17 @@ def admin_tasks():
                     <td>{{ task.title }}</td>
                     <td>{{ task.description }}</td>
                     <td>{{ task.reward }}</td>
-                    <td>{{ task.posted_by }}</td>
+                    <td>{{ task.get('created_by', 'Unknown') }}</td>
                     <td>
-                        {% if task.approved %}
+                        {% if task.get('status') == 'approved' %}
                             ✅ Approved
                         {% else %}
-                            ❌ Pending
+                            ❌ {{ task.get('status', 'Pending') }}
                         {% endif %}
                     </td>
                     <td>
-                        {% if not task.approved %}
-                        <a href="{{ url_for('approve_task', task_id=task.id) }}" class="approve-btn" onclick="return confirm('Approve this task?')">Approve</a>
-                        <a href="{{ url_for('reject_task', task_id=task.id) }}" class="reject-btn" onclick="return confirm('Reject this task?')">Reject</a>
+                        {% if task.get('status') != 'approved' %}
+                        <a href="{{ url_for('approve_task', task_id=task.get('id', '')) }}" class="approve-btn" onclick="return confirm('Approve this task?')">Approve</a>
                         {% else %}
                             — 
                         {% endif %}
@@ -3936,7 +4086,7 @@ def admin_tasks():
     </html>
     """, tasks=all_tasks)
 
-@app.route("/approve-task/<int:task_id>")
+@app.route("/approve-task/<task_id>")
 def approve_task(task_id):
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
@@ -3958,30 +4108,33 @@ def admin_task_management():
         task = get_task_by_id(str(task_id))
         if task:
             update_task(task['id'], {'status': 'approved'})
-            flash("Task approved successfully!", "success")
         return redirect(url_for("admin_task_management"))
 
-    # Show all tasks
-    all_tasks_docs = db.collection('tasks').order_by('created_at', direction=firestore.Query.DESCENDING).stream() if db else []
+    # Show all tasks from JSON database
+    all_tasks = query_tasks()
     tasks = []
-    for doc in all_tasks_docs:
-        task_data = doc.to_dict()
-        task_data['id'] = doc.id
-        # Get creator and assignee usernames
+    for task in all_tasks:
+        task_data = task.copy()
+        # Get creator username
         if task_data.get('created_by'):
-            creator = get_user_by_id(task_data['created_by'])
-            task_data['creator'] = {'username': creator.get('username', 'Unknown')} if creator else None
+            creator_username = task_data['created_by']
+            task_data['creator'] = {'username': creator_username}
+        else:
+            task_data['creator'] = None
+        # Get assignee username
         if task_data.get('assigned_to'):
-            assignee = get_user_by_id(task_data['assigned_to'])
-            task_data['assignee'] = {'username': assignee.get('username', 'Unknown')} if assignee else None
+            assignee_username = task_data['assigned_to']
+            task_data['assignee'] = {'username': assignee_username}
+        else:
+            task_data['assignee'] = None
         tasks.append(task_data)
     
     # Get all users for display
-    all_users_docs = db.collection('users').stream() if db else []
+    users_data = load_users()
     users_list = []
-    for doc in all_users_docs:
-        user_data = doc.to_dict()
-        user_data['id'] = doc.id
+    for username, user_data in users_data.items():
+        user_data['id'] = username
+        user_data['username'] = username
         users_list.append(user_data)
 
     return render_template_string(r"""
@@ -4055,16 +4208,22 @@ def admin_task_management():
         </table>
     </body>
     </html>
-    """, tasks=tasks , users=users)
+    """, tasks=tasks, users=users_list)
 
-@app.route("/assign-task/<int:task_id>")
+@app.route("/assign-task/<task_id>")
 def assign_task(task_id):
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
 
     user_id = request.args.get("user_id")
     task = get_task_by_id(str(task_id))
-    user = get_user_by_id(str(user_id))
+    
+    # Get user by username (since JSON DB uses username as key)
+    users_data = load_users()
+    user = None
+    if user_id and user_id in users_data:
+        user = users_data[user_id]
+        user['username'] = user_id
 
     if task and user:
         existing_active_tasks = query_tasks({'assigned_to': user['id'], 'active_for_user': True, 'completed': False})
