@@ -4416,17 +4416,6 @@ def view_admins():
     </html>
     """, admins=all_admins, is_admin=is_admin_logged_in, logged_in_email=logged_in_email)
 
-@app.route("/remove-admin/<int:user_id>")
-def remove_admin(user_id):
-    if not session.get("logged_in") or not session.get("is_admin"):
-        return redirect(url_for("signin"))
-    user = get_user_by_id(str(user_id))
-    current_admin_email = session.get("user_email")
-    if user and user.get('is_admin', False) and user.get('email', '') != current_admin_email:
-        update_user(user['id'], {'is_admin': False})  # ✅ revert to regular user
-
-    return redirect(url_for("view_users"))
-
 @app.route("/report-admin/<int:user_id>")
 def report_admin(user_id):
     if not session.get("logged_in"):
