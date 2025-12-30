@@ -3562,9 +3562,9 @@ def view_users():
         <td>
             <form method="POST" action="{{ url_for('update_gender', user_id=u.get('id', '')) }}">
                 <select name="gender" class="username-input" disabled>
-                    <option value="Male" {% if u.gender == 'Male' %}selected{% endif %}>Male</option>
-                    <option value="Female" {% if u.gender == 'Female' %}selected{% endif %}>Female</option>
-                    <option value="Other" {% if u.gender == 'Other' %}selected{% endif %}>Other</option>
+                    <option value="Male" {% if u.get('gender') == 'Male' %}selected{% endif %}>Male</option>
+                    <option value="Female" {% if u.get('gender') == 'Female' %}selected{% endif %}>Female</option>
+                    <option value="Other" {% if u.get('gender') == 'Other' %}selected{% endif %}>Other</option>
                 </select>
                 <span class="pen" onclick="enableEdit(this)">✏️</span>
                 <button type="submit" class="save-btn">💾</button>
@@ -3572,7 +3572,7 @@ def view_users():
         </td>
         <!-- ROLE -->
         <td>
-            {% if u.is_admin %}
+            {% if u.get('is_admin', False) %}
                 <b style="color:green;">ADMIN</b>
             {% else %}
                 USER
@@ -3580,12 +3580,12 @@ def view_users():
         </td>
         <!-- ADMIN ACTION -->
         <td>
-            {% if not u.is_admin %}
+            {% if not u.get('is_admin', False) %}
                 <a href="{{ url_for('make_admin', user_id=u.get('id', '')) }}"
                     onclick="return confirm('Make this user an admin?')">
                     👑 Make Admin 👑
                 </a>
-            {% elif u.is_admin and u.email != session.get('user_email') %}
+            {% elif u.get('is_admin', False) and u.get('email', '') != session.get('user_email') %}
                 <a href="{{ url_for('remove_admin', user_id=u.get('id', '')) }}"
                     onclick="return confirm('Remove admin rights from this user?')">
                     🚫 Remove Admin 🚫
@@ -4003,10 +4003,9 @@ def admin_task_management():
     # Approve a task
     if request.method == "POST":
         task_id = request.form.get("task_id")
-        task = Task.query.get(task_id)
+        task = get_task_by_id(str(task_id))
         if task:
-            task.status = "approved"
-            db.session.commit()
+            update_task(task['id'], {'status': 'approved'})
             flash("Task approved successfully!", "success")
         return redirect(url_for("admin_task_management"))
 
@@ -4253,10 +4252,9 @@ def remove_admin(user_id):
 def report_admin(user_id):
     if not session.get("logged_in"):
         return redirect(url_for("signin"))
-    admin = User.query.get(user_id)
+    admin = get_user_by_id(str(user_id))
     if admin:
-        admin.reported = True
-        db.session.commit()
+        update_user(admin['id'], {'reported': True})
 
     return redirect(url_for("view_admins"))
 
