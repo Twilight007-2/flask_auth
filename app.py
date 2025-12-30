@@ -1410,7 +1410,7 @@ def signin():
                 <h2>Welcome Back</h2>
                 <p>Sign in to your account</p>
             </div>
-                <form method="POST" autocomplete="off">
+            <form method="POST" autocomplete="off">
                 <div class="form-group">
                     <label>Email or Mobile Number</label>
                     <input type="text" name="identifier" placeholder="Enter your email or mobile" required>
@@ -1423,16 +1423,16 @@ def signin():
                     </div>
                 </div>
                 <button type="submit">Sign In</button>
-                        <div class="divider">
-                    <span>OR</span>
-                        </div>
-                <a href="{{ url_for('signup') }}" class="signup-btn">Create New Account</a>
-                <div class="forgot-link">
-                    <a href="{{ url_for('forgot_password') }}">Forgot password?</a>
-                        </div>
-                </form>
+            </form>
+            <div class="divider">
+                <span>OR</span>
+            </div>
+            <a href="{{ url_for('signup') }}" class="signup-btn">Create New Account</a>
+            <div class="forgot-link">
+                <a href="{{ url_for('forgot_password') }}">Forgot password?</a>
+            </div>
             {% if message %}
-                <div class="msg">{{ message }}</div>
+            <div class="msg">{{ message }}</div>
             {% endif %}
         </div>
     </body>
