@@ -2450,18 +2450,6 @@ def dashboard(email):
                             <div class="info-label">Mobile Number</div>
                             <div class="info-value">{{ user['mobile'] }}</div>
                         </div>
-                        <div class="info-card">
-                            <div class="info-label">Gender</div>
-                            <div class="info-value">{{ user['gender'] }}</div>
-                        </div>
-                        <div class="info-card">
-                            <div class="info-label">Date of Birth</div>
-                            <div class="info-value">{{ user['dob'] }}</div>
-                        </div>
-                        <div class="info-card">
-                            <div class="info-label">Age</div>
-                            <div class="info-value">{{ age }} years</div>
-                        </div>
                     </div>
 
                     <div class="action-buttons">
@@ -2493,7 +2481,7 @@ def dashboard(email):
         </script>
     </body>
     </html>
-    """, user=user, full_name=full_name, age=age)
+    """, user=user, full_name=full_name)
 
 # ================= USER TASKS PAGE =================
 from flask import flash
