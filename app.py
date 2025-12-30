@@ -3172,11 +3172,9 @@ def switch_task(task_id):
         return redirect(url_for("my_tasks"))
 
     if current_active:
-        current_active.active_for_user = False
+        update_task(current_active['id'], {'active_for_user': False})
 
-    new_task.active_for_user = True
-
-    db.session.commit()
+    update_task(new_task['id'], {'active_for_user': True})
     return redirect(url_for("my_tasks"))
 
 @app.route("/start-task/<int:task_id>")
