@@ -3017,9 +3017,7 @@ def update_profile_photo(email):
             except Exception as e:
                 print(f"Warning: Could not delete old photo {old_path}: {e}")
 
-    # Update Firestore
-    update_user(user_obj['id'], {'profile_photo': filename})
-
+    # Note: Simple JSON DB doesn't store profile_photo, but file is saved
     # Update in-memory dictionary if it exists
     username = user_obj.get('username', '')
     if username in users:
