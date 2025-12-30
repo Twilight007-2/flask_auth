@@ -1,15 +1,13 @@
 import os
 import re
 import random
-from datetime import datetime
-from flask import Flask, render_template_string, request, redirect, url_for
-from flask_sqlalchemy import SQLAlchemy
-from flask import session
-from datetime import datetime , timedelta
-from flask_migrate import upgrade, Migrate, init
+import json
+from datetime import datetime, timedelta
+from flask import Flask, render_template_string, request, redirect, url_for, session
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy.exc import IntegrityError
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 MAX_ATTEMPTS = 5
 LOCK_TIME = timedelta(minutes=10)
@@ -41,167 +39,288 @@ users = {}
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-# Database configuration - Use SQLite for local development (persistent file-based)
-# For production on Render, use PostgreSQL by setting DATABASE_URL environment variable
-database_url = os.environ.get('DATABASE_URL')
-
-# Remove any MySQL configuration from environment to avoid connection errors
-if database_url and ('mysql' in database_url.lower() or 'mariadb' in database_url.lower()):
-    print("⚠️  MySQL/MariaDB detected in DATABASE_URL but not supported. Using SQLite instead.")
-    database_url = None
-
-if database_url:
-    # Render PostgreSQL - replace postgres:// with postgresql://
-    if database_url.startswith('postgres://'):
-        database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-    print(f"✅ Using PostgreSQL database from DATABASE_URL")
-else:
-    # SQLite fallback - persistent file-based database
-    db_path = os.path.join(basedir, "neologin.db")
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+# Initialize Firebase Admin SDK
+try:
+    # Check for service account JSON file path in environment variable
+    cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
     
-    # Ensure the database file directory exists
-    os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else '.', exist_ok=True)
-    
-    # Check if database file exists (data persistence check)
-    db_exists = os.path.exists(db_path)
-    if db_exists:
-        file_size = os.path.getsize(db_path)
-        print(f"✅ Using existing SQLite database at: {db_path} ({file_size} bytes)")
+    if cred_path and os.path.exists(cred_path):
+        # Use service account JSON file
+        cred = credentials.Certificate(cred_path)
+        firebase_admin.initialize_app(cred)
+        print(f"✅ Firebase initialized with service account: {cred_path}")
+    elif os.path.exists('firebase-service-account.json'):
+        # Use local service account file
+        cred = credentials.Certificate('firebase-service-account.json')
+        firebase_admin.initialize_app(cred)
+        print(f"✅ Firebase initialized with local service account file")
     else:
-        print(f"✅ Creating new SQLite database at: {db_path}")
+        # Try to use default credentials (for Google Cloud environments)
+        try:
+            firebase_admin.initialize_app()
+            print(f"✅ Firebase initialized with default credentials")
+        except Exception as e:
+            print(f"⚠️  Firebase initialization failed: {e}")
+            print(f"   Please set GOOGLE_APPLICATION_CREDENTIALS environment variable")
+            print(f"   or place firebase-service-account.json in the project root")
+            raise
     
-    # Configure SQLite for better persistence
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'pool_pre_ping': True,
-        'pool_recycle': 300,
-    }
+    # Initialize Firestore
+    db = firestore.client()
+    print(f"✅ Firestore client initialized")
+    
+except Exception as e:
+    print(f"❌ Critical: Firebase initialization failed: {e}")
+    print(f"   The app will not work without Firebase. Please configure Firebase credentials.")
+    db = None
 
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Firebase Firestore Helper Functions
+def get_user_by_email(email):
+    """Get user document by email from Firestore."""
+    if not db:
+        return None
+    try:
+        users_ref = db.collection('users')
+        query = users_ref.where('email', '==', email).limit(1).stream()
+        for doc in query:
+            user_data = doc.to_dict()
+            user_data['id'] = doc.id
+            return user_data
+        return None
+    except Exception as e:
+        print(f"Error getting user by email: {e}")
+        return None
 
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
+def get_user_by_mobile(mobile):
+    """Get user document by mobile from Firestore."""
+    if not db:
+        return None
+    try:
+        users_ref = db.collection('users')
+        query = users_ref.where('mobile', '==', mobile).limit(1).stream()
+        for doc in query:
+            user_data = doc.to_dict()
+            user_data['id'] = doc.id
+            return user_data
+        return None
+    except Exception as e:
+        print(f"Error getting user by mobile: {e}")
+        return None
 
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    first_name = db.Column(db.String(50))
-    last_name = db.Column(db.String(50))
-    dob = db.Column(db.String(20))
-    mobile = db.Column(db.String(10))
-    email = db.Column(db.String(100))
-    username = db.Column(db.String(50), unique=True)
-    password = db.Column(db.String(1024))
-    is_admin = db.Column(db.Boolean, default=False)  # ✅ ADD ONLY THIS
-    reported = db.Column(db.Boolean, default=False)  # ✅ NEW FIELD
-    profile_photo = db.Column(db.String(255), default="default.png")
-    gender = db.Column(db.String(10))  # New column
-    failed_attempts = db.Column(db.Integer, default=0)
-    lock_until = db.Column(db.DateTime, nullable=True)
-    otp = db.Column(db.String(6), nullable=True)
-    otp_expiration = db.Column(db.DateTime, nullable=True)
+def get_user_by_username(username):
+    """Get user document by username from Firestore."""
+    if not db:
+        return None
+    try:
+        users_ref = db.collection('users')
+        query = users_ref.where('username', '==', username).limit(1).stream()
+        for doc in query:
+            user_data = doc.to_dict()
+            user_data['id'] = doc.id
+            return user_data
+        return None
+    except Exception as e:
+        print(f"Error getting user by username: {e}")
+        return None
 
-class Task(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
-    description = db.Column(db.Text, nullable=False)
-    reward = db.Column(db.String(50), nullable=False)
-    status = db.Column(db.String(20), default="pending")  # e.g., pending, accepted, completed
+def get_user_by_id(user_id):
+    """Get user document by ID from Firestore."""
+    if not db:
+        return None
+    try:
+        doc_ref = db.collection('users').document(user_id)
+        doc = doc_ref.get()
+        if doc.exists:
+            user_data = doc.to_dict()
+            user_data['id'] = doc.id
+            return user_data
+        return None
+    except Exception as e:
+        print(f"Error getting user by ID: {e}")
+        return None
 
-    # Who created the task
-    created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    creator = db.relationship("User", foreign_keys=[created_by], backref="created_tasks")
+def create_user(user_data):
+    """Create a new user in Firestore."""
+    if not db:
+        return None
+    try:
+        # Remove id if present (Firestore will generate it)
+        user_data.pop('id', None)
+        # Convert datetime objects to timestamps
+        if 'lock_until' in user_data and user_data['lock_until']:
+            if isinstance(user_data['lock_until'], datetime):
+                user_data['lock_until'] = user_data['lock_until']
+        if 'otp_expiration' in user_data and user_data['otp_expiration']:
+            if isinstance(user_data['otp_expiration'], datetime):
+                user_data['otp_expiration'] = user_data['otp_expiration']
+        
+        doc_ref = db.collection('users').add(user_data)
+        return doc_ref[1].id  # Return the document ID
+    except Exception as e:
+        print(f"Error creating user: {e}")
+        return None
 
-    # Who is assigned or accepted the task
-    assigned_to = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    assignee = db.relationship("User", foreign_keys=[assigned_to], backref="assigned_tasks")
+def update_user(user_id, updates):
+    """Update user document in Firestore."""
+    if not db:
+        return False
+    try:
+        # Convert datetime objects
+        if 'lock_until' in updates and updates['lock_until']:
+            if isinstance(updates['lock_until'], datetime):
+                updates['lock_until'] = updates['lock_until']
+        if 'otp_expiration' in updates and updates['otp_expiration']:
+            if isinstance(updates['otp_expiration'], datetime):
+                updates['otp_expiration'] = updates['otp_expiration']
+        
+        doc_ref = db.collection('users').document(user_id)
+        doc_ref.update(updates)
+        return True
+    except Exception as e:
+        print(f"Error updating user: {e}")
+        return False
 
-    # Task tracking
-    active_for_user = db.Column(db.Boolean, default=False)  # Currently active task for user
-    completed = db.Column(db.Boolean, default=False)        # Completed task
+def get_task_by_id(task_id):
+    """Get task document by ID from Firestore."""
+    if not db:
+        return None
+    try:
+        doc_ref = db.collection('tasks').document(task_id)
+        doc = doc_ref.get()
+        if doc.exists:
+            task_data = doc.to_dict()
+            task_data['id'] = doc.id
+            return task_data
+        return None
+    except Exception as e:
+        print(f"Error getting task by ID: {e}")
+        return None
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+def create_task(task_data):
+    """Create a new task in Firestore."""
+    if not db:
+        return None
+    try:
+        task_data.pop('id', None)
+        if 'created_at' not in task_data:
+            task_data['created_at'] = datetime.utcnow()
+        doc_ref = db.collection('tasks').add(task_data)
+        return doc_ref[1].id
+    except Exception as e:
+        print(f"Error creating task: {e}")
+        return None
 
-# Initialize database with error handling - Only run once at startup
+def update_task(task_id, updates):
+    """Update task document in Firestore."""
+    if not db:
+        return False
+    try:
+        doc_ref = db.collection('tasks').document(task_id)
+        doc_ref.update(updates)
+        return True
+    except Exception as e:
+        print(f"Error updating task: {e}")
+        return False
+
+def query_tasks(filters):
+    """Query tasks with filters."""
+    if not db:
+        return []
+    try:
+        tasks_ref = db.collection('tasks')
+        query = tasks_ref
+        for field, value in filters.items():
+            query = query.where(field, '==', value)
+        tasks = []
+        for doc in query.stream():
+            task_data = doc.to_dict()
+            task_data['id'] = doc.id
+            tasks.append(task_data)
+        return tasks
+    except Exception as e:
+        print(f"Error querying tasks: {e}")
+        return []
+
+# Initialize admin user in Firestore
 _db_initialized = False
 
 def init_database():
-    """Initialize database tables and admin user. Only runs once."""
+    """Initialize admin user in Firestore. Only runs once."""
     global _db_initialized
-    if _db_initialized:
+    if _db_initialized or not db:
         return True
     
     try:
-        with app.app_context():
-            # Create all tables if they don't exist
-            db.create_all()
-            print(f"✅ Database tables created/verified.")
-            
-            # Create admin user if it doesn't exist (check by both email and username)
-            admin_by_email = User.query.filter_by(email=ADMIN_EMAIL).first()
-            admin_by_username = User.query.filter_by(username="Admin_No.1").first()
-            
-            if not admin_by_email and not admin_by_username:
-                try:
-                    admin = User(
-                        first_name="Admin",
-                        last_name="User",
-                        dob="2000-01-01",
-                        mobile="9999999999",
-                        email=ADMIN_EMAIL,
-                        username="Admin_No.1",
-                        password=generate_password_hash(ADMIN_PASSWORD),
-                        is_admin=True,
-                        gender="Male"
-                    )
-                    db.session.add(admin)
-                    db.session.commit()
-                    print(f"✅ Admin user created successfully.")
-                except IntegrityError as ie:
-                    db.session.rollback()
-                    print(f"⚠️  Admin user already exists (IntegrityError). Skipping creation.")
-            elif admin_by_email:
-                # Ensure admin user has correct password hash
-                if not admin_by_email.password.startswith('$2b$') and not admin_by_email.password.startswith('$2a$'):
-                    admin_by_email.password = generate_password_hash(ADMIN_PASSWORD)
-                    db.session.commit()
-                    print(f"✅ Admin password updated.")
-            elif admin_by_username:
-                # Admin exists by username but not email - update email
-                admin_by_username.email = ADMIN_EMAIL
-                admin_by_username.is_admin = True
-                if not admin_by_username.password.startswith('$2b$') and not admin_by_username.password.startswith('$2a$'):
-                    admin_by_username.password = generate_password_hash(ADMIN_PASSWORD)
-                db.session.commit()
-                print(f"✅ Admin user updated.")
-
-            # Load all users into memory (optional, for backward compatibility)
-            all_users = User.query.all()
-            for u in all_users:
-                users[u.username] = {
-                    "first_name": u.first_name,
-                    "last_name": u.last_name,
-                    "dob": u.dob,
-                    "mobile": u.mobile,
-                    "email": u.email,
-                    "username": u.username,
-                    "password": u.password,
-                    "profile_photo": u.profile_photo or "default.png",
-                    "gender": u.gender,
+        # Check if admin user exists
+        admin = get_user_by_email(ADMIN_EMAIL)
+        admin_by_username = get_user_by_username("Admin_No.1")
+        
+        if not admin and not admin_by_username:
+            # Create admin user
+            admin_data = {
+                'first_name': 'Admin',
+                'last_name': 'User',
+                'dob': '2000-01-01',
+                'mobile': '9999999999',
+                'email': ADMIN_EMAIL,
+                'username': 'Admin_No.1',
+                'password': generate_password_hash(ADMIN_PASSWORD),
+                'is_admin': True,
+                'reported': False,
+                'profile_photo': 'default.png',
+                'gender': 'Male',
+                'failed_attempts': 0,
+                'lock_until': None,
+                'otp': None,
+                'otp_expiration': None
+            }
+            admin_id = create_user(admin_data)
+            if admin_id:
+                print(f"✅ Admin user created successfully in Firestore.")
+            else:
+                print(f"⚠️  Failed to create admin user.")
+        elif admin:
+            # Update admin password if needed
+            if not admin.get('password', '').startswith('$2b$') and not admin.get('password', '').startswith('$2a$'):
+                update_user(admin['id'], {'password': generate_password_hash(ADMIN_PASSWORD)})
+                print(f"✅ Admin password updated.")
+        elif admin_by_username:
+            # Update admin email and password
+            updates = {'email': ADMIN_EMAIL, 'is_admin': True}
+            if not admin_by_username.get('password', '').startswith('$2b$') and not admin_by_username.get('password', '').startswith('$2a$'):
+                updates['password'] = generate_password_hash(ADMIN_PASSWORD)
+            update_user(admin_by_username['id'], updates)
+            print(f"✅ Admin user updated.")
+        
+        # Load all users into memory (optional, for backward compatibility)
+        if db:
+            all_users_docs = db.collection('users').stream()
+            for doc in all_users_docs:
+                user_data = doc.to_dict()
+                user_data['id'] = doc.id
+                users[user_data.get('username', '')] = {
+                    "first_name": user_data.get('first_name', ''),
+                    "last_name": user_data.get('last_name', ''),
+                    "dob": user_data.get('dob', ''),
+                    "mobile": user_data.get('mobile', ''),
+                    "email": user_data.get('email', ''),
+                    "username": user_data.get('username', ''),
+                    "password": user_data.get('password', ''),
+                    "profile_photo": user_data.get('profile_photo', 'default.png'),
+                    "gender": user_data.get('gender', ''),
                 }
-            print(f"✅ Database initialized successfully. Loaded {len(users)} users from database.")
-            _db_initialized = True
-            return True
+        print(f"✅ Firestore initialized successfully. Loaded {len(users)} users.")
+        _db_initialized = True
+        return True
     except Exception as e:
-        print(f"⚠️  Warning: Could not initialize database: {e}")
-        print(f"   The app will continue to run, but database features may not work.")
-        print(f"   Currently using: {app.config['SQLALCHEMY_DATABASE_URI']}")
+        print(f"⚠️  Warning: Could not initialize Firestore: {e}")
         import traceback
         traceback.print_exc()
         return False
 
 # Initialize database at startup
-init_database()
+if db:
+    init_database()
 def calculate_age(dob_str):
     try:
         dob = datetime.strptime(dob_str, "%Y-%m-%d")
@@ -653,13 +772,13 @@ def signup():
 
         pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&]).{8,}$'
         mobile_pattern = r'^[6-9]\d{9}$'
-        # Check database for existing users instead of in-memory dictionary
+        # Check Firestore for existing users
         try:
-            mobile_exists = User.query.filter_by(mobile=mobile).first() is not None
-            email_exists = User.query.filter_by(email=email).first() is not None
-            username_exists = User.query.filter_by(username=username).first() is not None
+            mobile_exists = get_user_by_mobile(mobile) is not None
+            email_exists = get_user_by_email(email) is not None
+            username_exists = get_user_by_username(username) is not None
         except Exception as e:
-            print(f"Database query error during signup validation: {e}")
+            print(f"Firestore query error during signup validation: {e}")
             message = "Database error. Please try again later."
             return render_template_string(r"""
     <!DOCTYPE html>
@@ -704,56 +823,56 @@ def signup():
             message = "Passwords do not match"
             clear_password = True
         else:
-            new_user = User(
-                first_name=fname,
-                last_name=lname,
-                dob=dob,
-                mobile=mobile,
-                email=email,
-                username=username,
-                password=generate_password_hash(password),
-                profile_photo=filename,
-                gender=gender, # save in DB
-                failed_attempts = 0,
-                lock_until = None
-            )
+            new_user_data = {
+                'first_name': fname,
+                'last_name': lname,
+                'dob': dob,
+                'mobile': mobile,
+                'email': email,
+                'username': username,
+                'password': generate_password_hash(password),
+                'profile_photo': filename,
+                'gender': gender,
+                'is_admin': False,
+                'reported': False,
+                'failed_attempts': 0,
+                'lock_until': None,
+                'otp': None,
+                'otp_expiration': None
+            }
 
             try:
-                db.session.add(new_user)
-                db.session.commit()
-                
-                # Update in-memory dictionary (optional, for backward compatibility)
-                users[username] = {
-                    "first_name": fname,
-                    "last_name": lname,
-                    "dob": dob,
-                    "mobile": mobile,
-                    "email": email,
-                    "username": username,
-                    "password": password,
-                    "profile_photo": filename,
-                    "gender": gender,
-                }
-                return redirect(url_for('signin'))
-            except IntegrityError as e:
-                db.session.rollback()
-                print(f"IntegrityError during signup: {e}")
-                error_str = str(e).lower()
-                if "username" in error_str or "unique constraint" in error_str and "username" in error_str:
+                user_id = create_user(new_user_data)
+                if user_id:
+                    # Update in-memory dictionary (optional, for backward compatibility)
+                    users[username] = {
+                        "first_name": fname,
+                        "last_name": lname,
+                        "dob": dob,
+                        "mobile": mobile,
+                        "email": email,
+                        "username": username,
+                        "password": password,
+                        "profile_photo": filename,
+                        "gender": gender,
+                    }
+                    return redirect(url_for('signin'))
+                else:
+                    message = "Registration failed. Please try again."
+            except Exception as e:
+                print(f"Error during signup: {e}")
+                # Double-check for duplicates (race condition)
+                if get_user_by_username(username):
                     message = "Username already exists"
                     clear_username = True
-                elif "email" in error_str:
+                elif get_user_by_email(email):
                     message = "Email ID already exists"
                     clear_email = True
-                elif "mobile" in error_str:
+                elif get_user_by_mobile(mobile):
                     message = "Mobile number already exists"
                     clear_mobile = True
                 else:
-                    message = f"Registration failed: {str(e)}. Please try again."
-            except Exception as e:
-                db.session.rollback()
-                print(f"Unexpected error during signup: {e}")
-                message = f"Registration failed due to an error. Please try again. Error: {str(e)}"
+                    message = f"Registration failed due to an error. Please try again. Error: {str(e)}"
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -1183,11 +1302,12 @@ def signin():
         password = request.form.get("password", "").strip()
 
         try:
-            user = User.query.filter(
-                (User.email == identifier) | (User.mobile == identifier)
-            ).first()
+            # Try email first, then mobile
+            user = get_user_by_email(identifier)
+            if not user:
+                user = get_user_by_mobile(identifier)
         except Exception as e:
-            print(f"Database query error during signin: {e}")
+            print(f"Firestore query error during signin: {e}")
             message = "Database error. Please try again later."
             return render_template_string(r"""
     <!DOCTYPE html>
@@ -1209,10 +1329,17 @@ def signin():
 
         if user:
             # 1️⃣ Check if account is locked
-            if user.lock_until and datetime.utcnow() < user.lock_until:
-                remaining = user.lock_until - datetime.utcnow()
-                minutes, seconds = divmod(remaining.seconds, 60)
-                message = f"Account locked. Try again in {minutes}m {seconds}s"
+            lock_until = user.get('lock_until')
+            if lock_until:
+                # Convert Firestore timestamp to datetime if needed
+                if hasattr(lock_until, 'timestamp'):
+                    lock_until = lock_until.to_datetime()
+                if isinstance(lock_until, str):
+                    lock_until = datetime.fromisoformat(lock_until.replace('Z', '+00:00'))
+                if datetime.utcnow() < lock_until:
+                    remaining = lock_until - datetime.utcnow()
+                    minutes, seconds = divmod(remaining.seconds, 60)
+                    message = f"Account locked. Try again in {minutes}m {seconds}s"
                 return render_template_string(r"""
     <!DOCTYPE html>
     <html>
@@ -1272,50 +1399,50 @@ def signin():
             # 2️⃣ Password check - support both hashed and plain text (for backward compatibility)
             password_valid = False
             try:
+                user_password = user.get('password', '')
                 # Check if password is hashed (starts with $2b$ or $2a$)
-                if user.password and (user.password.startswith('$2b$') or user.password.startswith('$2a$')):
+                if user_password and (user_password.startswith('$2b$') or user_password.startswith('$2a$')):
                     # Password is hashed, use check_password_hash
-                    password_valid = check_password_hash(user.password, password)
+                    password_valid = check_password_hash(user_password, password)
                 else:
                     # Password is plain text (old format), compare directly
-                    password_valid = (user.password == password) if user.password else False
+                    password_valid = (user_password == password) if user_password else False
                     # If login successful with plain text, hash it for future use
                     if password_valid:
-                        user.password = generate_password_hash(password)
-                        db.session.commit()
+                        update_user(user['id'], {'password': generate_password_hash(password)})
             except Exception as e:
                 print(f"Error during password verification: {e}")
                 password_valid = False
             
             if password_valid:
                 # ✅ Successful login
-                user.failed_attempts = 0
-                user.lock_until = None
-                db.session.commit()
+                update_user(user['id'], {'failed_attempts': 0, 'lock_until': None})
 
                 session['logged_in'] = True
-                session['user_email'] = user.email
-                session['is_admin'] = user.is_admin
+                session['user_email'] = user.get('email', '')
+                session['is_admin'] = user.get('is_admin', False)
+                session['user_id'] = user.get('id', '')
 
-                if user.is_admin and user.reported:
+                if user.get('is_admin', False) and user.get('reported', False):
                     session["show_admin_warning"] = True
 
-                if user.is_admin:
+                if user.get('is_admin', False):
                     return redirect(url_for('admin_menu'))
                 else:
-                    return redirect(url_for('dashboard', email=user.email))
+                    return redirect(url_for('dashboard', email=user.get('email', '')))
 
             else:
                 # 3️⃣ Failed login attempt
                 try:
-                    user.failed_attempts += 1
-                    if user.failed_attempts >= MAX_ATTEMPTS:
-                        user.lock_until = datetime.utcnow() + LOCK_TIME
+                    failed_attempts = user.get('failed_attempts', 0) + 1
+                    updates = {'failed_attempts': failed_attempts}
+                    if failed_attempts >= MAX_ATTEMPTS:
+                        updates['lock_until'] = datetime.utcnow() + LOCK_TIME
                         message = f"Too many failed attempts. Account locked for {LOCK_TIME.seconds // 60} minutes."
                     else:
-                        remaining = MAX_ATTEMPTS - user.failed_attempts
+                        remaining = MAX_ATTEMPTS - failed_attempts
                         message = f"Invalid password. {remaining} attempts remaining."
-                    db.session.commit()
+                    update_user(user['id'], updates)
                 except Exception as e:
                     print(f"Error updating failed attempts: {e}")
                     message = "Invalid password. Please try again."
@@ -1611,7 +1738,7 @@ def forgot_password():
         email = request.form.get("email")
 
         # Find user
-        user = User.query.filter_by(email=email).first()
+        user = get_user_by_email(email)
         if not user:
             return render_template_string(r"""
                 <script>
@@ -1621,10 +1748,16 @@ def forgot_password():
             """)
 
         # Check lock
-        if user.lock_until:
+        lock_until = user.get('lock_until')
+        if lock_until:
             now_utc = datetime.utcnow()
+            # Convert Firestore timestamp if needed
+            if hasattr(lock_until, 'to_datetime'):
+                lock_until = lock_until.to_datetime()
+            elif isinstance(lock_until, str):
+                lock_until = datetime.fromisoformat(lock_until.replace('Z', '+00:00'))
             # Compare UTC times
-            if now_utc < user.lock_until:
+            if now_utc < lock_until:
                 return render_template_string(r"""
                     <script>
                         alert("Too many reset attempts. Try again after 10 minutes.");
@@ -1633,19 +1766,16 @@ def forgot_password():
                 """)
             else:
                 # Lock expired → reset
-                user.failed_attempts = 0
-                user.lock_until = None
-                db.session.commit()
+                update_user(user['id'], {'failed_attempts': 0, 'lock_until': None})
 
         # ✅ Generate OTP
         import random
         otp = str(random.randint(100000, 999999))
-        user.otp = otp
-        user.otp_expiration = datetime.utcnow() + timedelta(minutes=5)
-        db.session.commit()
+        otp_expiration = datetime.utcnow() + timedelta(minutes=5)
+        update_user(user['id'], {'otp': otp, 'otp_expiration': otp_expiration})
 
         # ✅ Save email in session for verification
-        session['reset_email'] = user.email
+        session['reset_email'] = user.get('email', '')
 
         # ✅ Show OTP directly on the page (old method)
         return render_template_string(f"""
@@ -1852,7 +1982,7 @@ def verify_otp():
     if not email:
         return redirect("/forgot-password")
 
-    user = User.query.filter_by(email=email).first()
+    user = get_user_by_email(email)
     if not user:
         return redirect("/forgot-password")
     
@@ -1874,7 +2004,13 @@ def verify_otp():
                 </script>
             """)
 
-        if datetime.utcnow() > user.otp_expiration:
+        otp_expiration = user.get('otp_expiration')
+        if otp_expiration:
+            if hasattr(otp_expiration, 'to_datetime'):
+                otp_expiration = otp_expiration.to_datetime()
+            elif isinstance(otp_expiration, str):
+                otp_expiration = datetime.fromisoformat(otp_expiration.replace('Z', '+00:00'))
+        if otp_expiration and datetime.utcnow() > otp_expiration:
             return render_template_string(r"""
                 <script>
                     alert("OTP expired!");
@@ -1899,10 +2035,7 @@ def verify_otp():
             """)
 
         # Update password
-        user.password = password
-        user.otp = None
-        user.otp_expiration = None
-        db.session.commit()
+        update_user(user['id'], {'password': generate_password_hash(password), 'otp': None, 'otp_expiration': None})
 
         session.pop("reset_email", None)
 
@@ -2186,7 +2319,7 @@ def reset_password(token):
     except BadSignature:
         return "Invalid reset link."
 
-    user = User.query.filter_by(email=email).first()
+    user = get_user_by_email(email)
     if not user:
         return "Invalid user."
 
@@ -2200,13 +2333,12 @@ def reset_password(token):
         # 🔹 Hash the password
         hashed_password = generate_password_hash(new_password, method="sha256")
 
-        # 🔹 Update the DB
-        user.password = hashed_password
-        db.session.commit()   # ← THIS IS THE CRUCIAL LINE
+        # 🔹 Update Firestore
+        update_user(user['id'], {'password': hashed_password})
 
         # Optional: update in-memory dictionary if you maintain one
-        if user.username in users:
-            users[user.username]["password"] = hashed_password
+        if user.get('username') in users:
+            users[user.get('username')]["password"] = hashed_password
 
         return redirect(url_for("signin"))  # or show success message
 
@@ -2228,10 +2360,9 @@ def make_admin(user_id):
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
 
-    user = User.query.get(user_id)
+    user = get_user_by_id(str(user_id))
     if user:
-        user.is_admin = True
-        db.session.commit()
+        update_user(user['id'], {'is_admin': True})
 
     return redirect(url_for("view_users"))
 
@@ -2685,7 +2816,7 @@ def view_tasks():
         return redirect(url_for("signin"))
     
     user_email = session.get("user_email")
-    user_obj = User.query.filter_by(email=user_email).first()
+    user_obj = get_user_by_email(user_email)
     if not user_obj:
         return redirect(url_for("signin"))
     
@@ -2696,25 +2827,28 @@ def view_tasks():
         reward = request.form.get("reward", "").strip()
 
         if title and description and reward:
-            new_task = Task(
-                title=title,
-                description=description,
-                reward=reward,
-                status="pending",
-                created_by=user_obj.id
-            )
-            db.session.add(new_task)
-            db.session.commit()
-            flash("Task posted successfully!", "success")
+            task_data = {
+                'title': title,
+                'description': description,
+                'reward': reward,
+                'status': 'pending',
+                'created_by': user_obj['id'],
+                'assigned_to': None,
+                'active_for_user': False,
+                'completed': False,
+                'created_at': datetime.utcnow()
+            }
+            task_id = create_task(task_data)
+            if task_id:
+                flash("Task posted successfully!", "success")
+            else:
+                flash("Failed to create task!", "danger")
         else:
             flash("All fields are required!", "danger")
         return redirect(url_for("view_tasks"))
 
     # GET: Show tasks
-    tasks = Task.query.filter_by(
-        status="approved",
-        assigned_to=None
-    ).all()
+    tasks = query_tasks({'status': 'approved', 'assigned_to': None})
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -2856,20 +2990,14 @@ def complete_task(task_id):
         return redirect(url_for("signin"))
 
     user_email = session.get("user_email")
-    user = User.query.filter_by(email=user_email).first()
+    user = get_user_by_email(user_email)
     if not user:
         return redirect(url_for("signin"))
 
-    task = Task.query.filter_by(
-        id=task_id,
-        assigned_to=user.id,
-        completed=False
-    ).first()
+    task = get_task_by_id(str(task_id))
 
-    if task:
-        task.completed = True
-        task.active_for_user = False   # IMPORTANT
-        db.session.commit()
+    if task and task.get('assigned_to') == user['id'] and not task.get('completed', False):
+        update_task(task['id'], {'completed': True, 'active_for_user': False})
 
     # 🔴 THIS is the fix
     return redirect(url_for("my_tasks"))
@@ -2880,14 +3008,15 @@ def my_tasks():
         return redirect(url_for("signin"))
 
     user_email = session.get("user_email")
-    user_obj = User.query.filter_by(email=user_email).first()
+    user_obj = get_user_by_email(user_email)
     if not user_obj:
         return redirect(url_for("signin"))
-
+    
     # Fetch tasks
-    active_task = Task.query.filter_by(assigned_to=user_obj.id, active_for_user=True, completed=False).first()
-    pending_tasks = Task.query.filter_by(assigned_to=user_obj.id, active_for_user=False, completed=False).all()
-    completed_tasks = Task.query.filter_by(assigned_to=user_obj.id, completed=True).all()
+    active_tasks = query_tasks({'assigned_to': user_obj['id'], 'active_for_user': True, 'completed': False})
+    active_task = active_tasks[0] if active_tasks else None
+    pending_tasks = query_tasks({'assigned_to': user_obj['id'], 'active_for_user': False, 'completed': False})
+    completed_tasks = query_tasks({'assigned_to': user_obj['id'], 'completed': True})
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -3065,26 +3194,22 @@ def start_task(task_id):
         return redirect(url_for("signin"))
 
     user_email = session.get("user_email")
-    user = User.query.filter_by(email=user_email).first()
+    user = get_user_by_email(user_email)
     if not user:
         return redirect(url_for("signin"))
 
     # Deactivate current active task
-    current = Task.query.filter_by(
-        assigned_to=user.id,
-        active_for_user=True,
-        completed=False
-    ).first()
+    current_tasks = query_tasks({'assigned_to': user['id'], 'active_for_user': True, 'completed': False})
+    current = current_tasks[0] if current_tasks else None
 
     if current:
-        current.active_for_user = False
+        update_task(current['id'], {'active_for_user': False})
 
     # Activate selected task
-    task = Task.query.get(task_id)
-    if task and task.assigned_to == user.id and not task.completed:
-        task.active_for_user = True
+    task = get_task_by_id(str(task_id))
+    if task and task.get('assigned_to') == user['id'] and not task.get('completed', False):
+        update_task(task['id'], {'active_for_user': True})
 
-    db.session.commit()
     return redirect(url_for("my_tasks"))
 
 # ================= POST A TASK (USER) =================
@@ -3195,8 +3320,8 @@ def update_profile_photo(email):
     if session.get("user_email") != email:
         return redirect(url_for('signin'))
 
-    # Get user from database
-    user_obj = User.query.filter_by(email=email).first()
+    # Get user from Firestore
+    user_obj = get_user_by_email(email)
     if not user_obj:
         return redirect(url_for('signin'))
 
@@ -3213,26 +3338,27 @@ def update_profile_photo(email):
     original_filename = secure_filename(file.filename)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     file_ext = os.path.splitext(original_filename)[1] or '.png'
-    filename = f"{user_obj.username}_{timestamp}{file_ext}"
+    filename = f"{user_obj.get('username', 'user')}_{timestamp}{file_ext}"
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(filepath)
 
     # Delete old photo if exists and not default
-    if user_obj.profile_photo and user_obj.profile_photo != "default.png":
-        old_path = os.path.join(app.config['UPLOAD_FOLDER'], user_obj.profile_photo)
+    old_photo = user_obj.get('profile_photo', '')
+    if old_photo and old_photo != "default.png":
+        old_path = os.path.join(app.config['UPLOAD_FOLDER'], old_photo)
         if os.path.exists(old_path):
             try:
                 os.remove(old_path)
             except Exception as e:
                 print(f"Warning: Could not delete old photo {old_path}: {e}")
 
-    # Update DB
-    user_obj.profile_photo = filename
-    db.session.commit()
+    # Update Firestore
+    update_user(user_obj['id'], {'profile_photo': filename})
 
     # Update in-memory dictionary if it exists
-    if user_obj.username in users:
-        users[user_obj.username]['profile_photo'] = filename
+    username = user_obj.get('username', '')
+    if username in users:
+        users[username]['profile_photo'] = filename
 
     return redirect(url_for("dashboard", email=email))
 
