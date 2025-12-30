@@ -10,9 +10,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 MAX_ATTEMPTS = 5
 LOCK_TIME = timedelta(minutes=10)
 
-app = Flask(__name__)
+basedir = os.path.abspath(os.path.dirname(__file__))
+# Go up one directory to find the static folder
+static_dir = os.path.join(os.path.dirname(basedir), 'static')
+app = Flask(__name__, static_folder=static_dir)
 app.secret_key = "neologin_secret"
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['UPLOAD_FOLDER'] = os.path.join(static_dir, 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB limit
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
@@ -28,7 +31,7 @@ def generate_otp():
     return str(random.randint(100000, 999999))  # 6-digit OTP
 
 os.makedirs(app.instance_path, exist_ok=True)
-os.makedirs('static/uploads', exist_ok=True)
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 ADMIN_EMAIL = "swamythk07@gmail.com"
 ADMIN_PASSWORD = "Admin@123"
@@ -2540,10 +2543,10 @@ def dashboard(email):
                     <div class="profile-picture-container">
                         {% set profile_img = user.get('profile_photo', '') %}
                         {% if profile_img and profile_img != 'default.png' and profile_img != '' %}
-                            <img src="{{ url_for('static', filename='uploads/' + profile_img) }}"
+                            <img src="/static/uploads/{{ profile_img }}"
                                 alt="Profile Photo"
                                 class="profile-pic"
-                                onerror="this.onerror=null; this.style.display='none'; var fallback = this.nextElementSibling; if(fallback) { fallback.style.display='flex'; }">
+                                onerror="console.error('Image failed to load:', this.src); this.onerror=null; this.style.display='none'; var fallback = this.nextElementSibling; if(fallback) { fallback.style.display='flex'; }">
                             <div class="profile-pic-fallback" style="display:none;">👤</div>
                         {% else %}
                             <div class="profile-pic-fallback">👤</div>
