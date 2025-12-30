@@ -2519,15 +2519,15 @@ def dashboard(email):
             <div class="dashboard-card">
                 <div class="profile-section">
                     <div class="profile-picture-container">
-                        {% if user.get('profile_photo') and user.get('profile_photo') != 'default.png' %}
-                            <img src="{{ url_for('static', filename='uploads/' + user.get('profile_photo', 'default.png')) }}"
+                        {% set profile_img = user.get('profile_photo', '') %}
+                        {% if profile_img and profile_img != 'default.png' and profile_img != '' %}
+                            <img src="{{ url_for('static', filename='uploads/' + profile_img) }}"
                                 alt="Profile Photo"
                                 class="profile-pic"
-                                onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default.png') }}';">
+                                onerror="this.onerror=null; this.style.display='none'; var fallback = this.nextElementSibling; if(fallback) fallback.style.display='flex';">
+                            <div class="profile-pic" style="display:none; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); align-items:center; justify-content:center; color:white; font-size:48px;">👤</div>
                         {% else %}
-                            <img src="{{ url_for('static', filename='uploads/default.png') }}"
-                                alt="Profile Photo"
-                                class="profile-pic">
+                            <div class="profile-pic" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); display:flex; align-items:center; justify-content:center; color:white; font-size:48px;">👤</div>
                         {% endif %}
                         <form action="{{ url_for('update_profile_photo', email=user['email']) }}" method="POST" enctype="multipart/form-data" class="profile-form">
                             <input type="file" name="profile_photo" id="profile_photo" accept="image/*" required>
@@ -2540,24 +2540,40 @@ def dashboard(email):
                     <div class="welcome-text">Welcome, {{ full_name }}!</div>
                 </div>
 
-                <div class="info-section">
+                    <div class="info-section">
                     <h2 class="section-title">Profile Information</h2>
                     <div class="info-grid">
                         <div class="info-card">
                             <div class="info-label">Full Name</div>
                             <div class="info-value">{{ full_name }}</div>
-            </div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-label">First Name</div>
+                            <div class="info-value">{{ user.get('first_name', 'Not set') }}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-label">Last Name</div>
+                            <div class="info-value">{{ user.get('last_name', 'Not set') }}</div>
+                        </div>
                         <div class="info-card">
                             <div class="info-label">Email Address</div>
-                            <div class="info-value">{{ user['email'] }}</div>
-        </div>
+                            <div class="info-value">{{ user.get('email', '') }}</div>
+                        </div>
                         <div class="info-card">
                             <div class="info-label">Username</div>
-                            <div class="info-value">{{ user['username'] }}</div>
+                            <div class="info-value">{{ user.get('username', '') }}</div>
                         </div>
                         <div class="info-card">
                             <div class="info-label">Mobile Number</div>
-                            <div class="info-value">{{ user['mobile'] }}</div>
+                            <div class="info-value">{{ user.get('mobile', 'Not set') }}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-label">Date of Birth</div>
+                            <div class="info-value">{{ user.get('dob', 'Not set') }}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-label">Gender</div>
+                            <div class="info-value">{{ user.get('gender', 'Not set') }}</div>
                         </div>
                     </div>
 
