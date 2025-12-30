@@ -8,6 +8,8 @@ from flask import session
 from datetime import datetime , timedelta
 from flask_migrate import upgrade, Migrate, init
 from flask_mail import Mail, Message
+from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy.exc import IntegrityError
 
 MAX_ATTEMPTS = 5
 LOCK_TIME = timedelta(minutes=10)
@@ -122,7 +124,7 @@ try:
                 print(f"✅ Admin user created successfully.")
             except IntegrityError as ie:
                 db.session.rollback()
-                print(f"⚠️  Admin user already exists (IntegrityError: {ie}). Skipping creation.")
+                print(f"⚠️  Admin user already exists (IntegrityError). Skipping creation.")
         elif admin_by_email:
             # Ensure admin user has correct password hash
             if not admin_by_email.password.startswith('$2b$') and not admin_by_email.password.startswith('$2a$'):
