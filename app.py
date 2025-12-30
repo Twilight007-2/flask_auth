@@ -345,7 +345,7 @@ def home():
                 <p><strong>Technologies:</strong> Python, Flask, MySQL</p>
                 <p><strong>Status:</strong> Under Development</p>
 
-                <a href="{{ url_for('signin') }}" class="project-link">
+                <a href="{{ url_for('neologin_home') }}" class="project-link">
                    View Live Website
                 </a>
                 <a href="https://github.com/Twilight007-2/Task-Management-Website" target="_blank" class="project-link">
@@ -365,6 +365,71 @@ def home():
             <p>© 2025 Hari Krishna T</p>
         </footer>
 
+    </body>
+    </html>
+    """)
+
+# NeoLogin Home Page
+@app.route("/neologin")
+def neologin_home():
+    return render_template_string(r"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>NeoLogin</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+        <style>
+            *{
+                box-sizing: border-box;
+            }
+            input:focus {
+                outline: none;
+                border: 2px solid #6f42c1;
+                box-shadow: 0 0 6px rgba(111,66,193,0.4);
+            }
+            button:hover {
+                opacity: 0.92;
+                transform: translateY(-1px);
+            }
+            button {
+                transition: all 0.2s ease;
+            }
+            body {
+                animation: pageFade 0.4s ease;
+            }
+            @keyframes pageFade {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            body { font-family: Arial, sans-serif; margin:0; padding:0; 
+            background-image: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80');
+            background-size: cover; background-position: center; }
+            .overlay { background-color: rgba(255,255,255,0.7); min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px; }  
+            .logo { font-size:100px; font-weight:bold; color:black; margin-bottom:20px; }
+            h1 { margin-bottom:10px; }
+            p.description { max-width:500px; margin:10px auto 30px auto; font-size:18px; color:#333; }
+            .button-group button { width:140px; padding:12px; margin:10px; font-size:16px; border:none; border-radius:5px; cursor:pointer; color:white; }
+            .signup-btn { background-color: #28a745; }
+            .signin-btn { background-color: #007bff; }
+        </style>
+    </head>
+    <body>
+        <div class="overlay">
+            <div class="logo">N</div>
+            <h1>Welcome to NeoLogin</h1>
+            <p class="description">
+                NeoLogin is a secure and user-friendly authentication system.
+                Register to create an account or sign in to access your personalized dashboard.
+            </p>
+            <div class="button-group">
+                <form action="{{ url_for('signup') }}" method="get" style="display:inline;">
+                    <button type="submit" class="signup-btn">Sign Up</button>
+                </form>
+                <form action="{{ url_for('signin') }}" method="get" style="display:inline;">
+                    <button type="submit" class="signin-btn">Sign In</button>
+                </form>
+            </div>
+        </div>
     </body>
     </html>
     """)
