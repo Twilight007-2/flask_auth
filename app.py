@@ -2538,13 +2538,13 @@ def dashboard(email):
             <div class="dashboard-card">
                 <div class="profile-section">
                     <div class="profile-picture-container">
-                        {% set profile_img = user.get('profile_photo', 'default.png') %}
+                        {% set profile_img = user.get('profile_photo', '') %}
                         {% if profile_img and profile_img != 'default.png' and profile_img != '' %}
                             <img src="{{ url_for('static', filename='uploads/' + profile_img) }}"
                                 alt="Profile Photo"
                                 class="profile-pic"
-                                onerror="this.onerror=null; this.style.display='none'; var fallback = document.getElementById('profile-fallback'); if(fallback) fallback.style.display='flex';">
-                            <div id="profile-fallback" class="profile-pic-fallback" style="display:none;">👤</div>
+                                onerror="this.onerror=null; this.style.display='none'; var fallback = document.getElementById('profile-fallback-{{ user.get('username', '') }}'); if(fallback) fallback.style.display='flex';">
+                            <div id="profile-fallback-{{ user.get('username', '') }}" class="profile-pic-fallback" style="display:none;">👤</div>
                         {% else %}
                             <div class="profile-pic-fallback">👤</div>
                         {% endif %}
