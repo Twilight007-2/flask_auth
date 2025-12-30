@@ -629,7 +629,7 @@ def signup():
                 mobile=mobile,
                 email=email,
                 username=username,
-                password=password,
+                password=generate_password_hash(password),
                 profile_photo=filename,
                 gender=gender, # save in DB
                 failed_attempts = 0,
@@ -1144,8 +1144,21 @@ def signin():
     </body>
     </html>
     """, message=message)
-            # 2️⃣ Password check
-            if user.password == password:
+            # 2️⃣ Password check - support both hashed and plain text (for backward compatibility)
+            password_valid = False
+            # Check if password is hashed (starts with $2b$ or $2a$)
+            if user.password.startswith('$2b$') or user.password.startswith('$2a$'):
+                # Password is hashed, use check_password_hash
+                password_valid = check_password_hash(user.password, password)
+            else:
+                # Password is plain text (old format), compare directly
+                password_valid = (user.password == password)
+                # If login successful with plain text, hash it for future use
+                if password_valid:
+                    user.password = generate_password_hash(password)
+                    db.session.commit()
+            
+            if password_valid:
                 # ✅ Successful login
                 user.failed_attempts = 0
                 user.lock_until = None
