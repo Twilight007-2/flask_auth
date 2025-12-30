@@ -37,8 +37,10 @@ users = {}
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-# Simple JSON-based database file
+# Simple JSON-based database files
 DB_FILE = os.path.join(basedir, "users_db.json")
+JSON_DB_FILE = 'users_db.json'
+TASKS_DB_FILE = 'tasks_db.json'
 
 # Simple Database Functions
 def load_users():
@@ -115,16 +117,22 @@ def update_user_password(username, new_password):
 # ================= TASK DATABASE FUNCTIONS =================
 def load_tasks():
     """Load tasks from the JSON database file."""
-    if not os.path.exists(TASKS_DB_FILE):
+    tasks_file = os.path.join(basedir, TASKS_DB_FILE)
+    if not os.path.exists(tasks_file):
         return {}
-    with open(TASKS_DB_FILE, 'r') as f:
-        return json.load(f)
+    try:
+        with open(tasks_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading tasks: {e}")
+        return {}
 
 def save_tasks(tasks_data):
     """Save tasks to the JSON database file."""
     try:
-        with open(TASKS_DB_FILE, 'w') as f:
-            json.dump(tasks_data, f, indent=4)
+        tasks_file = os.path.join(basedir, TASKS_DB_FILE)
+        with open(tasks_file, 'w', encoding='utf-8') as f:
+            json.dump(tasks_data, f, indent=4, ensure_ascii=False)
         return True
     except Exception as e:
         print(f"Error saving tasks: {e}")
