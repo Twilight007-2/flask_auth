@@ -188,6 +188,7 @@ def create_user(username, email, password, mobile=None, first_name=None, last_na
         'dob': dob or '',
         'gender': gender or '',
         'profile_photo': profile_photo or 'default.png',
+        'is_admin': False,  # New users are not admin by default
         'created_at': datetime.utcnow().isoformat()
     }
     return save_users(users_data)
@@ -2250,15 +2251,31 @@ def logout():
     session.clear()
     return redirect(url_for('signin'))
 
-@app.route("/make-admin/<int:user_id>")
+@app.route("/make-admin/<user_id>")
 def make_admin(user_id):
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
+    
+    # user_id is the username in JSON database
+    update_user_admin_status(user_id, True)
+    
+    return redirect(url_for("view_users"))
 
-    user = get_user_by_id(str(user_id))
-    if user:
-        update_user(user['id'], {'is_admin': True})
-
+@app.route("/remove-admin/<user_id>")
+def remove_admin(user_id):
+    if not session.get("logged_in") or not session.get("is_admin"):
+        return redirect(url_for("signin"))
+    
+    # Prevent removing yourself
+    users_data = load_users()
+    if user_id in users_data:
+        user_email = users_data[user_id].get('email', '')
+        if user_email == session.get('user_email'):
+            return redirect(url_for("view_users"))
+    
+    # user_id is the username in JSON database
+    update_user_admin_status(user_id, False)
+    
     return redirect(url_for("view_users"))
 
 # Dashboard/Profile Page
@@ -3727,11 +3744,29 @@ def view_users():
         </td>
         <!-- ROLE -->
         <td>
-            USER
+            {% if u.get('is_admin', False) %}
+                <b style="color:green;">ADMIN</b>
+            {% else %}
+                USER
+            {% endif %}
         </td>
         <!-- ADMIN ACTION -->
         <td>
-            —  <!-- Admin management removed for JSON DB -->
+            {% if not u.get('is_admin', False) %}
+                <a href="{{ url_for('make_admin', user_id=u.get('id', u.get('username', ''))) }}"
+                    onclick="return confirm('Make this user an admin?')"
+                    style="background: #28a745; color: white; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">
+                    👑 Make Admin
+                </a>
+            {% elif u.get('is_admin', False) and u.get('email', '') != session.get('user_email') %}
+                <a href="{{ url_for('remove_admin', user_id=u.get('id', u.get('username', ''))) }}"
+                    onclick="return confirm('Remove admin rights from this user?')"
+                    style="background: #dc3545; color: white; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">
+                    🚫 Remove Admin
+                </a>
+            {% else %}
+                —  <!-- current admin cannot remove self -->
+            {% endif %}
         </td>
         <!-- Edit -->
         <td>—</td>
