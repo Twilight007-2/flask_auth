@@ -697,15 +697,30 @@ def signup():
             message = "Passwords do not match"
             clear_password = True
         else:
-            # Create user in simple JSON database
+            # Create user in simple JSON database with all fields
             try:
-                success = create_user(username, email, password, mobile)
+                success = create_user(
+                    username=username,
+                    email=email,
+                    password=password,
+                    mobile=mobile,
+                    first_name=fname,
+                    last_name=lname,
+                    dob=dob,
+                    gender=gender,
+                    profile_photo=filename
+                )
                 if success:
                     # Update in-memory dictionary (optional, for backward compatibility)
                     users[username] = {
                         "email": email,
                         "password": password,
                         "mobile": mobile,
+                        "first_name": fname,
+                        "last_name": lname,
+                        "dob": dob,
+                        "gender": gender,
+                        "profile_photo": filename
                     }
                     return redirect(url_for('signin'))
                 else:
