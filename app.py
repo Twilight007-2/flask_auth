@@ -1002,9 +1002,19 @@ def forgot_password():
 
         # ✅ Send OTP via Email
         try:
+            # Check if mail is configured
+            if not app.config.get('MAIL_PASSWORD') or app.config.get('MAIL_PASSWORD') == '':
+                return render_template_string(r"""
+                    <script>
+                        alert("Email service is not configured. Please contact administrator.");
+                        window.location.href = "/forgot-password";
+                    </script>
+                """)
+            
             msg = Message(
                 subject='Password Reset OTP - NeoLogin',
                 recipients=[user.email],
+                sender=app.config.get('MAIL_DEFAULT_SENDER', 'swamythk07@gmail.com'),
                 body=f'''
 Hello {user.first_name},
 
@@ -1039,21 +1049,61 @@ NeoLogin Team
 </html>
                 '''
             )
-            mail.send(msg)
             
-            # Show success message and redirect to verify-otp page
-            return render_template_string(r"""
-                <script>
-                    alert("OTP has been sent to your email address. Please check your inbox.");
-                    window.location.href = "/verify-otp";
-                </script>
-            """)
+            # Send email with timeout handling
+            import threading
+            email_sent = [False]
+            email_error = [None]
+            
+            def send_email():
+                try:
+                    mail.send(msg)
+                    email_sent[0] = True
+                except Exception as e:
+                    email_error[0] = str(e)
+            
+            # Start email sending in a thread
+            email_thread = threading.Thread(target=send_email)
+            email_thread.daemon = True
+            email_thread.start()
+            email_thread.join(timeout=10)  # Wait max 10 seconds
+            
+            if email_error[0]:
+                # Email sending failed
+                return render_template_string(f"""
+                    <script>
+                        alert("Failed to send OTP email. Error: {email_error[0]}. Please try again later.");
+                        window.location.href = "/forgot-password";
+                    </script>
+                """)
+            elif not email_sent[0]:
+                # Timeout - but still proceed (email might be sent)
+                return render_template_string(r"""
+                    <script>
+                        alert("OTP is being sent to your email. Please check your inbox. If you don't receive it, please try again.");
+                        window.location.href = "/verify-otp";
+                    </script>
+                """)
+            else:
+                # Email sent successfully
+                return render_template_string(r"""
+                    <script>
+                        alert("OTP has been sent to your email address. Please check your inbox.");
+                        window.location.href = "/verify-otp";
+                    </script>
+                """)
         except Exception as e:
-            # If email sending fails, show error
+            # If email sending fails, show error but still save OTP
+            import traceback
+            error_msg = str(e)
+            print(f"Email error: {error_msg}")
+            print(traceback.format_exc())
+            
+            # Still redirect to verify-otp so user can manually enter OTP if needed
             return render_template_string(f"""
                 <script>
-                    alert("Failed to send OTP email. Error: {str(e)}. Please try again later.");
-                    window.location.href = "/forgot-password";
+                    alert("There was an issue sending the email, but your OTP has been generated. Error: {error_msg}. You can try entering the OTP manually.");
+                    window.location.href = "/verify-otp";
                 </script>
             """)
 
