@@ -2519,15 +2519,15 @@ def dashboard(email):
             <div class="dashboard-card">
                 <div class="profile-section">
                     <div class="profile-picture-container">
-                        {% set profile_img = user.get('profile_photo', '') %}
+                        {% set profile_img = user.get('profile_photo', 'default.png') %}
                         {% if profile_img and profile_img != 'default.png' and profile_img != '' %}
                             <img src="{{ url_for('static', filename='uploads/' + profile_img) }}"
                                 alt="Profile Photo"
                                 class="profile-pic"
-                                onerror="this.onerror=null; this.style.display='none'; var fallback = this.nextElementSibling; if(fallback) fallback.style.display='flex';">
-                            <div class="profile-pic" style="display:none; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); align-items:center; justify-content:center; color:white; font-size:48px;">👤</div>
+                                onerror="this.onerror=null; this.style.display='none'; var fallback = document.getElementById('profile-fallback'); if(fallback) fallback.style.display='flex';">
+                            <div id="profile-fallback" class="profile-pic-fallback" style="display:none;">👤</div>
                         {% else %}
-                            <div class="profile-pic" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); display:flex; align-items:center; justify-content:center; color:white; font-size:48px;">👤</div>
+                            <div class="profile-pic-fallback">👤</div>
                         {% endif %}
                         <form action="{{ url_for('update_profile_photo', email=user['email']) }}" method="POST" enctype="multipart/form-data" class="profile-form">
                             <input type="file" name="profile_photo" id="profile_photo" accept="image/*" required>
