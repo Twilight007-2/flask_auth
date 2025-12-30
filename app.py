@@ -1102,27 +1102,27 @@ def signin():
                 user_password = user.get('password', '')
                 username = user.get('username', '')
                 
-                print(f"DEBUG: Attempting login for username: {username}")
-                print(f"DEBUG: Stored password hash exists: {bool(user_password)}")
-                print(f"DEBUG: Password hash starts with $2b$ or $2a$: {user_password.startswith('$2b$') or user_password.startswith('$2a$') if user_password else False}")
-                
                 if not user_password:
-                    print("DEBUG: No password found for user")
                     password_valid = False
                 else:
-                    # Check if password is hashed (starts with $2b$ or $2a$)
-                    if user_password.startswith('$2b$') or user_password.startswith('$2a$'):
-                        # Password is hashed, use check_password_hash
+                    # Check if password is hashed (werkzeug supports multiple formats: pbkdf2, scrypt, $2b$, $2a$)
+                    # werkzeug's check_password_hash can handle all formats
+                    is_hashed = (
+                        user_password.startswith('$2b$') or  # bcrypt
+                        user_password.startswith('$2a$') or  # bcrypt (old)
+                        user_password.startswith('pbkdf2:') or  # pbkdf2
+                        user_password.startswith('scrypt:')  # scrypt
+                    )
+                    
+                    if is_hashed:
+                        # Password is hashed, use check_password_hash (works with all werkzeug hash formats)
                         password_valid = check_password_hash(user_password, password)
-                        print(f"DEBUG: Password check result: {password_valid}")
                     else:
                         # Password is plain text (old format), compare directly
                         password_valid = (user_password == password)
-                        print(f"DEBUG: Plain text password check result: {password_valid}")
                         # If login successful with plain text, hash it for future use
                         if password_valid and username:
                             update_user_password(username, password)
-                            print(f"DEBUG: Updated plain text password to hashed")
             except Exception as e:
                 print(f"ERROR during password verification: {e}")
                 import traceback
@@ -1131,14 +1131,12 @@ def signin():
             
             if password_valid:
                 # ✅ Successful login
-                print(f"DEBUG: Login successful for {user.get('email', '')}")
                 session['logged_in'] = True
                 session['user_email'] = user.get('email', '')
                 session['username'] = user.get('username', '')
                 return redirect(url_for('dashboard', email=user.get('email', '')))
             else:
                 # Failed login attempt
-                print(f"DEBUG: Login failed - password invalid")
                 message = "Invalid password. Please try again."
 
         else:
