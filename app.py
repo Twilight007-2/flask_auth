@@ -2078,28 +2078,20 @@ def dashboard(email):
     if not user_db:
         return redirect(url_for('signin'))
     
-    # User data is already in dictionary format from Firestore
+    # Simple user data from JSON database
     user = {
-        "first_name": user_db.get('first_name', ''),
-        "last_name": user_db.get('last_name', ''),
-        "dob": user_db.get('dob', ''),
-        "mobile": user_db.get('mobile', ''),
         "email": user_db.get('email', ''),
         "username": user_db.get('username', ''),
-        "profile_photo": user_db.get('profile_photo', 'default.png'),
-        "gender": user_db.get('gender', '')
+        "mobile": user_db.get('mobile', ''),
+        "first_name": user_db.get('username', '').split('_')[0] if user_db.get('username') else '',  # Extract first part of username
+        "last_name": '',  # Not stored in simple DB
+        "dob": '',  # Not stored in simple DB
+        "profile_photo": "default.png",  # Default
+        "gender": ''  # Not stored in simple DB
     }
 
-    age = calculate_age(user["dob"])
-    if age == "INVALID_DOB":
-        return render_template_string(r"""
-            <script>
-                alert("Your DOB is wrong. Please update it.");
-                window.location.href = "/edit-profile";
-            </script>
-        """)
-
-    full_name = f"{user['first_name']} {user['last_name']}"
+    # Use username as display name if first_name is not available
+    full_name = user['username'] if user['username'] else user['email'].split('@')[0]
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -3005,7 +2997,7 @@ def update_profile_photo(email):
     if session.get("user_email") != email:
         return redirect(url_for('signin'))
 
-    # Get user from Firestore
+    # Get user from JSON database
     user_obj = get_user_by_email(email)
     if not user_obj:
         return redirect(url_for('signin'))
@@ -3046,6 +3038,18 @@ def update_profile_photo(email):
         users[username]['profile_photo'] = filename
 
     return redirect(url_for("dashboard", email=email))
+
+# ================= EDIT PROFILE (Simple redirect to dashboard) =================
+@app.route("/edit-profile")
+def edit_profile():
+    """Simple edit profile route - redirects to dashboard since we only store login credentials."""
+    if not session.get("logged_in"):
+        return redirect(url_for('signin'))
+    
+    email = session.get("user_email")
+    if email:
+        return redirect(url_for('dashboard', email=email))
+    return redirect(url_for('signin'))
 
 # ================= VIEW USERS (ADMIN ONLY) =================
 @app.route("/view-users")
