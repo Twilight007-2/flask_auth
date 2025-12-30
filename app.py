@@ -97,9 +97,9 @@ class Task(db.Model):
 
 # Initialize database with error handling
 try:
-    with app.app_context():
-        db.create_all()
-        
+with app.app_context():
+    db.create_all()
+    
         # Create admin user if it doesn't exist
         admin = User.query.filter_by(email=ADMIN_EMAIL).first()
         if not admin:
@@ -118,17 +118,17 @@ try:
             db.session.commit()
 
         # Load all users into memory
-        all_users = User.query.all()
-        for u in all_users:
-            users[u.username] = {
-                "first_name": u.first_name,
-                "last_name": u.last_name,
-                "dob": u.dob,
-                "mobile": u.mobile,
-                "email": u.email,
-                "username": u.username,
-                "password": u.password,
-            }
+    all_users = User.query.all()
+    for u in all_users:
+        users[u.username] = {
+            "first_name": u.first_name,
+            "last_name": u.last_name,
+            "dob": u.dob,
+            "mobile": u.mobile,
+            "email": u.email,
+            "username": u.username,
+            "password": u.password,
+        }
         print(f"✅ Database initialized successfully. Loaded {len(users)} users.")
 except Exception as e:
     print(f"⚠️  Warning: Could not initialize database: {e}")
@@ -374,47 +374,158 @@ def home():
 def neologin_home():
     return render_template_string(r"""
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-        <title>NeoLogin</title>
-        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>NeoLogin - Secure Authentication</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
-            *{
+            * {
+                margin: 0;
+                padding: 0;
                 box-sizing: border-box;
             }
-            input:focus {
-                outline: none;
-                border: 2px solid #6f42c1;
-                box-shadow: 0 0 6px rgba(111,66,193,0.4);
-            }
-            button:hover {
-                opacity: 0.92;
-                transform: translateY(-1px);
-            }
-            button {
-                transition: all 0.2s ease;
-            }
+
             body {
-                animation: pageFade 0.4s ease;
+                font-family: 'Poppins', sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+                position: relative;
+                overflow: hidden;
             }
-            @keyframes pageFade {
-                from { opacity: 0; }
-                to { opacity: 1; }
+
+            body::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80') center/cover;
+                opacity: 0.1;
+                z-index: -1;
             }
-            body { font-family: Arial, sans-serif; margin:0; padding:0; 
-            background-image: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80');
-            background-size: cover; background-position: center; }
-            .overlay { background-color: rgba(255,255,255,0.7); min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px; }  
-            .logo { font-size:100px; font-weight:bold; color:black; margin-bottom:20px; }
-            h1 { margin-bottom:10px; }
-            p.description { max-width:500px; margin:10px auto 30px auto; font-size:18px; color:#333; }
-            .button-group button { width:140px; padding:12px; margin:10px; font-size:16px; border:none; border-radius:5px; cursor:pointer; color:white; }
-            .signup-btn { background-color: #28a745; }
-            .signin-btn { background-color: #007bff; }
+
+            .container {
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                border-radius: 30px;
+                padding: 60px 50px;
+                text-align: center;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                max-width: 600px;
+                width: 100%;
+                animation: slideUp 0.6s ease;
+            }
+
+            @keyframes slideUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .logo {
+                font-size: 80px;
+                font-weight: 700;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                margin-bottom: 20px;
+                text-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
+            }
+
+            h1 {
+                font-size: 36px;
+                font-weight: 600;
+                color: #333;
+                margin-bottom: 15px;
+            }
+
+            .description {
+                font-size: 16px;
+                color: #666;
+                line-height: 1.8;
+                margin-bottom: 40px;
+                max-width: 500px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            .button-group {
+                display: flex;
+                gap: 20px;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            .btn {
+                padding: 15px 40px;
+                font-size: 16px;
+                font-weight: 600;
+                border: none;
+                border-radius: 25px;
+                cursor: pointer;
+                text-decoration: none;
+                display: inline-block;
+                transition: all 0.3s ease;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+                color: white;
+            }
+
+            .signup-btn {
+                background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            }
+
+            .signup-btn:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 8px 25px rgba(17, 153, 142, 0.4);
+            }
+
+            .signin-btn {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            }
+
+            .signin-btn:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            }
+
+            @media (max-width: 600px) {
+                .container {
+                    padding: 40px 30px;
+                }
+
+                .logo {
+                    font-size: 60px;
+                }
+
+                h1 {
+                    font-size: 28px;
+                }
+
+                .button-group {
+                    flex-direction: column;
+                }
+
+                .btn {
+                    width: 100%;
+                }
+            }
         </style>
     </head>
     <body>
-        <div class="overlay">
+        <div class="container">
             <div class="logo">N</div>
             <h1>Welcome to NeoLogin</h1>
             <p class="description">
@@ -423,10 +534,10 @@ def neologin_home():
             </p>
             <div class="button-group">
                 <form action="{{ url_for('signup') }}" method="get" style="display:inline;">
-                    <button type="submit" class="signup-btn">Sign Up</button>
+                    <button type="submit" class="btn signup-btn">Sign Up</button>
                 </form>
                 <form action="{{ url_for('signin') }}" method="get" style="display:inline;">
-                    <button type="submit" class="signin-btn">Sign In</button>
+                    <button type="submit" class="btn signin-btn">Sign In</button>
                 </form>
             </div>
         </div>
@@ -522,50 +633,249 @@ def signup():
 
     return render_template_string(r"""
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Sign Up - NeoLogin</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
-            *{
+            * {
+                margin: 0;
+                padding: 0;
                 box-sizing: border-box;
             }
-            input:focus {
-                outline: none;
-                border: 2px solid #6f42c1;
-                box-shadow: 0 0 6px rgba(111,66,193,0.4);
-            }
-            button:hover {
-                opacity: 0.92;
-                transform: translateY(-1px);
-            }
-            button {
-                transition: all 0.2s ease;
-            }
+
             body {
-                animation: pageFade 0.4s ease;
+                font-family: 'Poppins', sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+                position: relative;
             }
-            @keyframes pageFade {
-                from { opacity: 0; }
-                to { opacity: 1; }
+
+            body::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80') center/cover;
+                opacity: 0.1;
+                z-index: -1;
             }
-            body { font-family: Chiller, sans-serif; margin:0; padding:0; 
-                   background-image: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80');
-                   background-size: cover; background-position: center; }
-            .overlay { background-color: rgba(255,255,255,0.65); min-height: 100vh; 
-                       display:flex; flex-direction: column; align-items:center; justify-content:center; padding:20px;}
-            .box { background:#f9f9f9; padding:40px; border-radius:8px; width:400px; }
-            form { display:flex; flex-direction: column; }
-            .row { display:flex; gap:10px; }
-            input { padding:8px; margin-bottom:10px; flex:1; box-sizing:border-box; width:100%; }
-            button { width:100%; padding:12px; font-size:16px; border:none; border-radius:5px; cursor:pointer; background-color:#ff7f50; color:white;}
-            .msg { color:red; text-align:center; margin-top:10px; }
-            .msg {background: #ffe6e6;padding: 10px;border-radius: 8px;font-weight: bold;}
-            label { font-weight:bold; margin-bottom:3px; }
-            .password-rules { font-size: 13px; margin-bottom: 10px; }
-            .password-rules li { margin-bottom: 5px; color:red; transition: all 1s ease; }
-            .password-container { position: relative; width:100%; }
-            .password-container input { padding-right:35px; width:100%; }
-            .eye { position:absolute; right:10px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:18px; }
+
+            .container {
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                border-radius: 25px;
+                padding: 50px 40px;
+                max-width: 550px;
+                width: 100%;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                animation: slideUp 0.6s ease;
+            }
+
+            @keyframes slideUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .header {
+                text-align: center;
+                margin-bottom: 30px;
+            }
+
+            .header h2 {
+                font-size: 32px;
+                font-weight: 700;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                margin-bottom: 10px;
+            }
+
+            .header p {
+                color: #666;
+                font-size: 14px;
+            }
+
+            form {
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            .form-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+            }
+
+            .form-group {
+                display: flex;
+                flex-direction: column;
+            }
+
+            label {
+                font-size: 14px;
+                font-weight: 600;
+                color: #333;
+                margin-bottom: 8px;
+            }
+
+            input, select {
+                padding: 12px 15px;
+                border: 2px solid #e0e0e0;
+                border-radius: 10px;
+                font-size: 14px;
+                font-family: 'Poppins', sans-serif;
+                transition: all 0.3s ease;
+                background: white;
+            }
+
+            input:focus, select:focus {
+                outline: none;
+                border-color: #667eea;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            }
+
+            .password-container {
+                position: relative;
+            }
+
+            .password-container input {
+                padding-right: 45px;
+            }
+
+            .eye {
+                position: absolute;
+                right: 15px;
+                top: 50%;
+                transform: translateY(-50%);
+                cursor: pointer;
+                font-size: 18px;
+                user-select: none;
+            }
+
+            .password-rules {
+                list-style: none;
+                padding: 0;
+                margin: 10px 0;
+                font-size: 12px;
+            }
+
+            .password-rules li {
+                padding: 5px 0;
+                color: #e74c3c;
+                transition: all 0.3s ease;
+            }
+
+            .password-rules li[style*="green"] {
+                color: #27ae60;
+            }
+
+            .file-input-wrapper {
+                position: relative;
+                overflow: hidden;
+                display: inline-block;
+                width: 100%;
+            }
+
+            .file-input-wrapper input[type=file] {
+                position: absolute;
+                left: -9999px;
+            }
+
+            .file-input-label {
+                display: block;
+                padding: 12px 15px;
+                background: #f8f9fa;
+                border: 2px dashed #e0e0e0;
+                border-radius: 10px;
+                text-align: center;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                color: #666;
+                font-size: 14px;
+            }
+
+            .file-input-label:hover {
+                border-color: #667eea;
+                background: #f0f4ff;
+            }
+
+            button[type="submit"] {
+                padding: 15px;
+                background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+                color: white;
+                border: none;
+                border-radius: 12px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                box-shadow: 0 5px 15px rgba(17, 153, 142, 0.3);
+                margin-top: 10px;
+            }
+
+            button[type="submit"]:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px rgba(17, 153, 142, 0.4);
+            }
+
+            .msg {
+                background: #ffe6e6;
+                color: #c0392b;
+                padding: 15px;
+                border-radius: 10px;
+                text-align: center;
+                font-weight: 500;
+                font-size: 14px;
+                margin-top: 15px;
+                border-left: 4px solid #c0392b;
+            }
+
+            .back-link {
+                text-align: center;
+                margin-top: 20px;
+            }
+
+            .back-link a {
+                color: #667eea;
+                text-decoration: none;
+                font-weight: 500;
+                font-size: 14px;
+            }
+
+            .back-link a:hover {
+                text-decoration: underline;
+            }
+
+            @media (max-width: 600px) {
+                .container {
+                    padding: 40px 25px;
+                }
+
+                .form-row {
+                    grid-template-columns: 1fr;
+                }
+
+                .header h2 {
+                    font-size: 28px;
+                }
+            }
         </style>
         <script>
             function checkPassword() {
@@ -580,11 +890,11 @@ def signup():
                 rules.forEach(function(rule) {
                     var el = document.getElementById(rule.id);
                     if(rule.regex.test(pwd)) {
-                        el.style.color = "green";
+                        el.style.color = "#27ae60";
                         setTimeout(() => { el.style.display = "none"; }, 1500);
                     } else {
                         el.style.display = "list-item";
-                        el.style.color = "red";
+                        el.style.color = "#e74c3c";
                     }
                 });
             }
@@ -602,7 +912,6 @@ def signup():
             window.onload = function() {
                 document.getElementById("eye1").textContent = "🛡️";
                 document.getElementById("eye2").textContent = "🛡️";
-                // Mobile & Email validation
                 const mobileInput = document.getElementById('mobile');
                 const emailInput = document.querySelector('input[name="email"]');
                 const existingEmails = {{ users.values() | map(attribute='email') | list | tojson }};
@@ -622,11 +931,9 @@ def signup():
                         emailInput.focus();
                     }
                 });
-                // Prevent typing in DOB field - only allow calendar selection
                 const dobInput = document.getElementById('dob');
                 if (dobInput) {
                     dobInput.addEventListener('keydown', function(e) {
-                        // Allow arrow keys, tab, and delete for navigation
                         if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Delete', 'Backspace'].includes(e.key)) {
                             e.preventDefault();
                             return false;
@@ -645,44 +952,60 @@ def signup():
         </script>
     </head>
     <body>
-        <div class="overlay">
-            <div class="box">
-                <h3>Sign Up</h3>
-                <form method="POST" enctype="multipart/form-data" >
-                    <div class="row">
-                        <div>
+        <div class="container">
+            <div class="header">
+                <h2>Create Account</h2>
+                <p>Join NeoLogin and start your journey</p>
+            </div>
+            <form method="POST" enctype="multipart/form-data">
+                <div class="form-row">
+                    <div class="form-group">
                             <label>First Name</label>
                             <input type="text" name="first_name" placeholder="First Name" value="{{ '' if clear_fname else request.form.get('first_name','') }}" required>
                         </div>
-                        <div>
+                    <div class="form-group">
                             <label>Last Name</label>
                             <input type="text" name="last_name" placeholder="Last Name" value="{{ '' if clear_lname else request.form.get('last_name','') }}" required>
                         </div>
                     </div>
+                <div class="form-group">
                     <label>Profile Photo</label>
-                    <input type="file" name="profile_photo" accept="image/*">
+                    <div class="file-input-wrapper">
+                        <input type="file" name="profile_photo" id="profile_photo" accept="image/*">
+                        <label for="profile_photo" class="file-input-label">📷 Choose Profile Photo (Optional)</label>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
                     <label>Date of Birth</label>
-                    <input type="date" name="dob" id="dob" value="{{ '' if clear_dob else request.form.get('dob','') }}" min="1900-01-01" max="2024-12-31" required onkeydown="return false;" onpaste="return false;">     
-                    <label for="gender">Gender:</label>
-                    <select name="gender" id="gender" required style="margin-bottom:15px;">
-                        <option value="" disabled selected>Select your gender</option>
+                        <input type="date" name="dob" id="dob" value="{{ '' if clear_dob else request.form.get('dob','') }}" min="1900-01-01" max="2024-12-31" required onkeydown="return false;" onpaste="return false;">
+                    </div>
+                    <div class="form-group">
+                        <label>Gender</label>
+                        <select name="gender" id="gender" required>
+                            <option value="" disabled selected>Select Gender</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
                         <option value="Other">Other</option>
                     </select>
+                    </div>
+                </div>
+                <div class="form-group">
                     <label>Mobile Number</label>
-                    <input type="text" id="mobile" name="mobile" placeholder="Mobile Number"
-       value="{{ '' if clear_mobile else request.form.get('mobile','') }}" required>
+                    <input type="text" id="mobile" name="mobile" placeholder="10-digit mobile number" value="{{ '' if clear_mobile else request.form.get('mobile','') }}" required>
+                </div>
+                <div class="form-group">
                     <label>Email ID</label>
-                    <input type="email" name="email" placeholder="Email ID"
-        value="{{ '' if clear_email else request.form.get('email','') }}" required>
+                    <input type="email" name="email" placeholder="your.email@example.com" value="{{ '' if clear_email else request.form.get('email','') }}" required>
+                </div>
+                <div class="form-group">
                     <label>Username</label>
-                    <input type="text" name="username" placeholder="Username" value="{{ '' if clear_username else request.form.get('username','') }}" required>
+                    <input type="text" name="username" placeholder="Choose a username" value="{{ '' if clear_username else request.form.get('username','') }}" required>
+                </div>
+                <div class="form-group">
                     <label>Password</label>
                     <div class="password-container">
-                       <input type="password" id="password" name="password" placeholder="Password"
-        value="{{ '' if clear_password else request.form.get('password','') }}"
-        required onkeyup="checkPassword()">
+                        <input type="password" id="password" name="password" placeholder="Create a strong password" value="{{ '' if clear_password else request.form.get('password','') }}" required onkeyup="checkPassword()">
                         <span class="eye" id="eye1" onclick="togglePassword('password','eye1')">🛡️</span>
                     </div>
                     <ul class="password-rules">
@@ -692,16 +1015,21 @@ def signup():
                         <li id="number">At least one number</li>
                         <li id="special">At least one special character (@$!%*#?&)</li>
                     </ul>
+                </div>
+                <div class="form-group">
                     <label>Confirm Password</label>
                     <div class="password-container">
-                        <input type="password" id="confirm_password" name="confirm_password" placeholder="Confirm Password"
-        value="{{ '' if clear_password else request.form.get('confirm_password','') }}"
-        required>
+                        <input type="password" id="confirm_password" name="confirm_password" placeholder="Re-enter your password" value="{{ '' if clear_password else request.form.get('confirm_password','') }}" required>
                         <span class="eye" id="eye2" onclick="togglePassword('confirm_password','eye2')">🛡️</span>
                     </div>
-                    <button type="submit">Register</button>
+                </div>
+                <button type="submit">Create Account</button>
                 </form>
+            {% if message %}
                 <div class="msg">{{ message }}</div>
+            {% endif %}
+            <div class="back-link">
+                <a href="{{ url_for('signin') }}">Already have an account? Sign In</a>
             </div>
         </div>
     </body>
@@ -830,43 +1158,234 @@ def signin():
 
     return render_template_string(r"""
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Sign In - NeoLogin</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
-            *{
+            * {
+                margin: 0;
+                padding: 0;
                 box-sizing: border-box;
             }
+
+            body {
+                font-family: 'Poppins', sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+                position: relative;
+            }
+
+            body::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80') center/cover;
+                opacity: 0.1;
+                z-index: -1;
+            }
+
+            .container {
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                border-radius: 25px;
+                padding: 50px 40px;
+                max-width: 450px;
+                width: 100%;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                animation: slideUp 0.6s ease;
+            }
+
+            @keyframes slideUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .header {
+                text-align: center;
+                margin-bottom: 30px;
+            }
+
+            .header h2 {
+                font-size: 32px;
+                font-weight: 700;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                margin-bottom: 10px;
+            }
+
+            .header p {
+                color: #666;
+                font-size: 14px;
+            }
+
+            form {
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            .form-group {
+                display: flex;
+                flex-direction: column;
+            }
+
+            label {
+                font-size: 14px;
+                font-weight: 600;
+                color: #333;
+                margin-bottom: 8px;
+            }
+
+            input {
+                padding: 12px 15px;
+                border: 2px solid #e0e0e0;
+                border-radius: 10px;
+                font-size: 14px;
+                font-family: 'Poppins', sans-serif;
+                transition: all 0.3s ease;
+                background: white;
+            }
+
             input:focus {
                 outline: none;
-                border: 2px solid #6f42c1;
-                box-shadow: 0 0 6px rgba(111,66,193,0.4);
+                border-color: #667eea;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
             }
-            button:hover {
-                opacity: 0.92;
-                transform: translateY(-1px);
+
+            .password-container {
+                position: relative;
             }
-            button {
-                transition: all 0.2s ease;
+
+            .password-container input {
+                padding-right: 45px;
             }
-            body {
-                animation: pageFade 0.4s ease;
+
+            .eye {
+                position: absolute;
+                right: 15px;
+                top: 50%;
+                transform: translateY(-50%);
+                cursor: pointer;
+                font-size: 18px;
+                user-select: none;
             }
-            @keyframes pageFade {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }                      
-            body { font-family: Arial, sans-serif; margin:0; padding:0;
-                   background-image: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80');
-                   background-size: cover; background-position: center; }
-            .overlay { background-color: rgba(255,255,255,0.65); min-height:100vh; display:flex; flex-direction: column; align-items:center; justify-content:center; padding:20px; }
-            .box { background:#f9f9f9; padding:40px; border-radius:8px; width:350px; }
-            .password-container { position:relative; width:100%; }
-            .password-container input { padding-right:35px; width:100%; }
-            .eye { position:absolute; right:10px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:18px; }
-            input { width:100%; padding:8px; margin:5px 0 10px 0; box-sizing:border-box; }
-            button { width:100%; padding:12px; font-size:16px; border:none; border-radius:5px; cursor:pointer; background-color:#6f42c1; color:white; }
-            .msg { margin-top:15px; text-align:center; color:red; }
+
+            button[type="submit"] {
+                padding: 15px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 12px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+                margin-top: 10px;
+            }
+
+            button[type="submit"]:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            }
+
+            .divider {
+                display: flex;
+                align-items: center;
+                margin: 20px 0;
+                color: #999;
+                font-size: 14px;
+            }
+
+            .divider::before,
+            .divider::after {
+                content: "";
+                flex: 1;
+                border-bottom: 1px solid #e0e0e0;
+            }
+
+            .divider span {
+                padding: 0 15px;
+            }
+
+            .signup-btn {
+                width: 100%;
+                padding: 15px;
+                background: white;
+                color: #667eea;
+                border: 2px solid #667eea;
+                border-radius: 12px;
+                font-size: 16px;
+                font-weight: 600;
+                text-decoration: none;
+                text-align: center;
+                display: block;
+                transition: all 0.3s ease;
+                cursor: pointer;
+            }
+
+            .signup-btn:hover {
+                background: #667eea;
+                color: white;
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+            }
+
+            .forgot-link {
+                text-align: center;
+                margin-top: 10px;
+            }
+
+            .forgot-link a {
+                color: #667eea;
+                text-decoration: none;
+                font-weight: 500;
+                font-size: 14px;
+            }
+
+            .forgot-link a:hover {
+                text-decoration: underline;
+            }
+
+            .msg {
+                background: #ffe6e6;
+                color: #c0392b;
+                padding: 15px;
+                border-radius: 10px;
+                text-align: center;
+                font-weight: 500;
+                font-size: 14px;
+                margin-top: 15px;
+                border-left: 4px solid #c0392b;
+            }
+
+            @media (max-width: 600px) {
+                .container {
+                    padding: 40px 25px;
+                }
+
+                .header h2 {
+                    font-size: 28px;
+                }
+            }
         </style>
         <script>
             function togglePassword(id, eyeId) {
@@ -880,80 +1399,41 @@ def signin():
                     eye.textContent = "🛡️";
                 }
             }
-            window.onload = function() { document.getElementById("eye").textContent = "🛡️"; };
-            .auth-actions {
-                width: 100%;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-            }
-            /* Divider */
-            .divider {
-                width: 100%;
-                display: flex;
-                align-items: center;
-                margin: 18px 0;
-                color: #777;
-                font-size: 14px;
-            }
-            .divider::before,
-            .divider::after {
-                content: "";
-                flex: 1;
-                border-bottom: 1px solid #ccc;
-            }
-            .divider span {
-                padding: 0 12px;
-                white-space: nowrap;
-            }
-            /* Signup button */
-            .signup-btn {
-                width: 100%;
-                padding: 12px;
-                font-size: 16px;
-                border-radius: 5px;
-                text-align: center;
-                background-color: #fff;
-                color: #6f42c1;
-                border: 2px solid #6f42c1;
-                font-weight: bold;
-                text-decoration: none;
-                transition: all 0.2s ease;
-            }
-            .signup-btn:hover {
-                background-color: #6f42c1;
-                color: white;
-            }
+            window.onload = function() {
+                document.getElementById("eye").textContent = "🛡️";
+            };
         </script>
     </head>
     <body>
-        <div class="overlay">
-            <div class="box">
-                <h3>Sign In</h3>
+        <div class="container">
+            <div class="header">
+                <h2>Welcome Back</h2>
+                <p>Sign in to your account</p>
+            </div>
                 <form method="POST" autocomplete="off">
-                    <input type="text" name="identifier" placeholder="Email or Mobile Number" required>
+                <div class="form-group">
+                    <label>Email or Mobile Number</label>
+                    <input type="text" name="identifier" placeholder="Enter your email or mobile" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
                     <div class="password-container">
-                        <input type="password" id="password" name="password" placeholder="Password" autocomplete="new-password" required>
+                        <input type="password" id="password" name="password" placeholder="Enter your password" autocomplete="new-password" required>
                         <span class="eye" id="eye" onclick="togglePassword('password','eye')">🛡️</span>
                     </div>
-                        <button type="submit">Login</button>      
+                </div>
+                <button type="submit">Sign In</button>
                         <div class="divider">
-                            <span>-----------------------OR-----------------------</span>
+                    <span>OR</span>
                         </div>
-                        <!-- ✅ NEW SIGN UP BUTTON -->
-                        <a href="{{ url_for('signup') }}" style="text-decoration:none;">
-                            <button type="button" class="signup-btn">Create New Account</button>
-                        </a>
-                            <p style="margin-top:12px; text-align:center;">
-                            <a href="{{ url_for('forgot_password') }}"
-                            style="color:#6f42c1; font-weight:bold; text-decoration:none;">
-                            Forgot password?
-                            </a>
+                <a href="{{ url_for('signup') }}" class="signup-btn">Create New Account</a>
+                <div class="forgot-link">
+                    <a href="{{ url_for('forgot_password') }}">Forgot password?</a>
                         </div>
-                    </p>
                 </form>
+            {% if message %}
                 <div class="msg">{{ message }}</div>
-            </div>
+            {% endif %}
         </div>
     </body>
     </html>
@@ -1017,45 +1497,179 @@ def forgot_password():
     # GET request → show email input form
     return render_template_string(r"""
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Forgot Password - NeoLogin</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 0;
-                background-image: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80');
-                background-size: cover; background-position: center; }
-            .overlay { background-color: rgba(255,255,255,0.4); min-height: 100vh;
-                display: flex; align-items: center; justify-content: center; }
-            .card { background: white; padding: 40px 50px; border-radius: 15px;
-                box-shadow: 0 10px 25px rgba(0,0,0,0.2); width: 100%; max-width: 400px;
-                animation: fadeIn 0.5s ease; }
-            @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } 
-                to { opacity: 1; transform: translateY(0); } }
-            h2 { text-align: center; margin-bottom: 25px; color: #333; }
-            input { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px;
-                border: 1px solid #ccc; font-size: 15px; }
-            input:focus { outline: none; border: 2px solid #6f42c1;
-                box-shadow: 0 0 6px rgba(111,66,193,0.4); }
-            button { width: 100%; padding: 12px; background-color: #6f42c1; color: white;
-                border: none; border-radius: 8px; font-size: 16px; font-weight: bold;
-                cursor: pointer; transition: all 0.2s ease; }
-            button:hover { background-color: #532d91; transform: translateY(-1px); }
-            .back-link { text-align: center; margin-top: 15px; }
-            .back-link a { text-decoration: none; color: #6f42c1; font-weight: bold; }
-            .back-link a:hover { text-decoration: underline; }
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: 'Poppins', sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+                position: relative;
+            }
+
+            body::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80') center/cover;
+                opacity: 0.1;
+                z-index: -1;
+            }
+
+            .container {
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                border-radius: 25px;
+                padding: 50px 40px;
+                max-width: 450px;
+                width: 100%;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                animation: slideUp 0.6s ease;
+            }
+
+            @keyframes slideUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .header {
+                text-align: center;
+                margin-bottom: 30px;
+            }
+
+            .header h2 {
+                font-size: 32px;
+                font-weight: 700;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                margin-bottom: 10px;
+            }
+
+            .header p {
+                color: #666;
+                font-size: 14px;
+            }
+
+            form {
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            .form-group {
+                display: flex;
+                flex-direction: column;
+            }
+
+            label {
+                font-size: 14px;
+                font-weight: 600;
+                color: #333;
+                margin-bottom: 8px;
+            }
+
+            input {
+                padding: 12px 15px;
+                border: 2px solid #e0e0e0;
+                border-radius: 10px;
+                font-size: 14px;
+                font-family: 'Poppins', sans-serif;
+                transition: all 0.3s ease;
+                background: white;
+            }
+
+            input:focus {
+                outline: none;
+                border-color: #667eea;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            }
+
+            button[type="submit"] {
+                padding: 15px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 12px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+                margin-top: 10px;
+            }
+
+            button[type="submit"]:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            }
+
+            .back-link {
+                text-align: center;
+                margin-top: 20px;
+            }
+
+            .back-link a {
+                color: #667eea;
+                text-decoration: none;
+                font-weight: 500;
+                font-size: 14px;
+            }
+
+            .back-link a:hover {
+                text-decoration: underline;
+            }
+
+            @media (max-width: 600px) {
+                .container {
+                    padding: 40px 25px;
+                }
+
+                .header h2 {
+                    font-size: 28px;
+                }
+            }
         </style>
     </head>
     <body>
-        <div class="overlay">
-            <div class="card">
-                <h2>Forgot Password</h2>
+        <div class="container">
+            <div class="header">
+                <h2>Reset Password</h2>
+                <p>Enter your email to receive an OTP</p>
+            </div>
                 <form method="POST">
-                    <input type="email" name="email" placeholder="Enter your email" required>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" name="email" placeholder="your.email@example.com" required>
+                </div>
                     <button type="submit">Send OTP</button>
                 </form>
                 <div class="back-link">
-                    <a href="/signin">Back to Sign In</a>
-                </div>
+                <a href="{{ url_for('signin') }}">Back to Sign In</a>
             </div>
         </div>
     </body>
@@ -1134,72 +1748,180 @@ def verify_otp():
 
     return render_template_string(r"""
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verify OTP - NeoLogin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: Chiller, sans-serif;
+        * {
             margin: 0;
             padding: 0;
-            background-image: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80');
-            background-size: cover;
-            background-position: center;
-        }
-        .overlay {
-            background-color: rgba(255,255,255,0.65);
-            min-height: 100vh;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-        }
-        .box {
-            background:#f9f9f9;
-            padding:40px;
-            border-radius:8px;
-            width:400px;
-        }
-        input {
-            width:100%;
-            padding:8px;             
-            margin:8px 0;            
-            border-radius:6px;
-            border:1px solid #ccc;
-            font-size:14px;          
-        }
-        button {
-            width:100%;
-            padding:12px;
-            font-size:16px;
-            border:none;
-            border-radius:5px;
-            background:#ff7f50;
-            color:white;
-            cursor:pointer;
-        }
-        .password-rules {
-            font-size:13px;
-            margin-bottom:10px;
-        }
-        .password-rules li {
-            color:red;
-            transition: all 1s ease;
-        }
-        .password-container {
-            position: relative;
-            width:100%;
-        }
-        .password-container input {
-            padding: 8px 35px 8px 8px;   /* SAME size as OTP */
             box-sizing: border-box;
         }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80') center/cover;
+            opacity: 0.1;
+            z-index: -1;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 25px;
+            padding: 50px 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: slideUp 0.6s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h2 {
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        input {
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: 'Poppins', sans-serif;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .password-container {
+            position: relative;
+        }
+
+        .password-container input {
+            padding-right: 45px;
+        }
+
         .eye {
-            position:absolute;
-            right:10px;
-            top:50%;
-            transform:translateY(-50%);
-            cursor:pointer;
-            font-size:18px;
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            font-size: 18px;
+            user-select: none;
+        }
+
+        button[type="submit"] {
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+            margin-top: 10px;
+        }
+
+        button[type="submit"]:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .password-rules {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+
+        .password-rules li {
+            padding: 5px 0;
+            color: #e74c3c;
+            transition: all 0.3s ease;
+        }
+
+        .password-rules li[style*="green"] {
+            color: #27ae60;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 40px 25px;
+            }
+
+            .header h2 {
+                font-size: 28px;
+            }
         }
     </style>
 
@@ -1245,18 +1967,22 @@ def verify_otp():
 </head>
 
 <body>
-<div class="overlay">
-    <div class="box">
-        <h3>Verify OTP</h3>
+    <div class="container">
+        <div class="header">
+            <h2>Verify OTP</h2>
+            <p>Enter the OTP and set your new password</p>
+        </div>
         <form method="POST">
-            <input type="text" name="otp" id="otp" placeholder="Enter OTP" value="{{ entered_otp }}" required>
-
+            <div class="form-group">
+                <label>OTP Code</label>
+                <input type="text" name="otp" id="otp" placeholder="Enter 6-digit OTP" value="{{ entered_otp }}" required maxlength="6">
+            </div>
+            <div class="form-group">
             <label>New Password</label>
             <div class="password-container">
-                <input type="password" id="password" name="password" required onkeyup="checkPassword()">
+                    <input type="password" id="password" name="password" placeholder="Create a strong password" required onkeyup="checkPassword()">
                 <span class="eye" id="eye1" onclick="togglePassword('password','eye1')">🛡️</span>
             </div>
-
             <ul class="password-rules">
                 <li id="length">At least 8 characters</li>
                 <li id="uppercase">At least one uppercase letter</li>
@@ -1264,16 +1990,16 @@ def verify_otp():
                 <li id="number">At least one number</li>
                 <li id="special">At least one special character (@$!%*#?&)</li>
             </ul>
-
+            </div>
+            <div class="form-group">
             <label>Confirm Password</label>
             <div class="password-container">
-                <input type="password" id="confirm_password" name="confirm_password" required>
+                    <input type="password" id="confirm_password" name="confirm_password" placeholder="Re-enter your password" required>
                 <span class="eye" id="eye2" onclick="togglePassword('confirm_password','eye2')">🛡️</span>
             </div>
-
+            </div>
             <button type="submit">Reset Password</button>
         </form>
-    </div>
 </div>
 </body>
 </html>
@@ -1352,7 +2078,7 @@ def dashboard(email):
     # Verify the email matches the logged-in user
     if session.get("user_email") != email:
         return redirect(url_for('signin'))
-    
+
     # Get user from database
     user_db = User.query.filter_by(email=email).first()
     if not user_db:
@@ -1566,11 +2292,11 @@ def dashboard(email):
                         <form action="{{ url_for('update_profile_photo', email=user['email']) }}" method="POST" enctype="multipart/form-data" class="profile-form">
                             <input type="file" name="profile_photo" id="profile_photo" accept="image/*" required>
                             <button type="submit" class="upload-btn">Upload Photo</button>
-                        </form>
+                    </form>
                         <label for="profile_photo" class="edit-photo-btn">
                             <span>✏️</span>
                         </label>
-                    </div>
+                </div>
                     <div class="welcome-text">Welcome, {{ full_name }}!</div>
                 </div>
 
@@ -1580,11 +2306,11 @@ def dashboard(email):
                         <div class="info-card">
                             <div class="info-label">Full Name</div>
                             <div class="info-value">{{ full_name }}</div>
-                        </div>
+            </div>
                         <div class="info-card">
                             <div class="info-label">Email Address</div>
                             <div class="info-value">{{ user['email'] }}</div>
-                        </div>
+        </div>
                         <div class="info-card">
                             <div class="info-label">Username</div>
                             <div class="info-value">{{ user['username'] }}</div>
