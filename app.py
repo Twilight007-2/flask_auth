@@ -3146,9 +3146,14 @@ def update_profile_photo(email):
             except Exception as e:
                 print(f"Warning: Could not delete old photo {old_path}: {e}")
 
-    # Note: Simple JSON DB doesn't store profile_photo, but file is saved
-    # Update in-memory dictionary if it exists
+    # Update JSON database with profile photo filename
+    users_data = load_users()
     username = user_obj.get('username', '')
+    if username in users_data:
+        users_data[username]['profile_photo'] = filename
+        save_users(users_data)
+    
+    # Update in-memory dictionary if it exists
     if username in users:
         users[username]['profile_photo'] = filename
 
