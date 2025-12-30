@@ -142,67 +142,225 @@ def calculate_age(dob_str):
     today = datetime.today()
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
-# Home Page
+# Home Page - Portfolio
 @app.route("/")
 def home():
     return render_template_string(r"""
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-        <title>NeoLogin</title>
-        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+        <meta charset="UTF-8">
+        <title>Hari Krishna T | Portfolio</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            *{
+            /* GLOBAL STYLES */
+            * {
+                margin: 0;
+                padding: 0;
                 box-sizing: border-box;
+                font-family: Arial, Helvetica, sans-serif;
             }
-            input:focus {
-                outline: none;
-                border: 2px solid #6f42c1;
-                box-shadow: 0 0 6px rgba(111,66,193,0.4);
+
+            html {
+                scroll-behavior: smooth;
             }
-            button:hover {
-                opacity: 0.92;
-                transform: translateY(-1px);
-            }
-            button {
-                transition: all 0.2s ease;
-            }
+
             body {
-                animation: pageFade 0.4s ease;
+                background-color: #f9f9f9;
+                color: #333;
+                line-height: 1.6;
             }
-            @keyframes pageFade {
-                from { opacity: 0; }
-                to { opacity: 1; }
+
+            /* HERO / HEADER */
+            .hero {
+                background: #1e293b;
+                color: white;
+                text-align: center;
+                padding: 60px 20px;
             }
-            body { font-family: Arial, sans-serif; margin:0; padding:0; 
-            background-image: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80');
-            background-size: cover; background-position: center; }
-            .overlay { background-color: rgba(255,255,255,0.7); min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px; }  
-            .logo { font-size:100px; font-weight:bold; color:black; margin-bottom:20px; }
-            h1 { margin-bottom:10px; }
-            p.description { max-width:500px; margin:10px auto 30px auto; font-size:18px; color:#333; }
-            .button-group button { width:140px; padding:12px; margin:10px; font-size:16px; border:none; border-radius:5px; cursor:pointer; color:white; }
-            .signup-btn { background-color: #28a745; }
-            .signin-btn { background-color: #007bff; }
+
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero h2 {
+                font-weight: normal;
+                margin-top: 10px;
+            }
+
+            .hero p {
+                margin: 10px 0 20px;
+            }
+
+            .btn {
+                display: inline-block;
+                padding: 10px 20px;
+                background: #38bdf8;
+                color: #000;
+                text-decoration: none;
+                border-radius: 5px;
+                font-weight: bold;
+                transition: background 0.3s;
+            }
+
+            .btn:hover {
+                background: #0ea5e9;
+            }
+
+            /* SECTIONS */
+            .section {
+                max-width: 900px;
+                margin: 80px auto;
+                padding: 0 20px;
+            }
+
+            .section h3 {
+                margin-bottom: 15px;
+                border-bottom: 2px solid #38bdf8;
+                display: inline-block;
+                padding-bottom: 5px;
+            }
+
+            /* SKILLS */
+            .skills {
+                display: flex;
+                gap: 40px;
+                flex-wrap: wrap;
+            }
+
+            .skills ul {
+                list-style: square;
+                margin-left: 20px;
+            }
+
+            /* PROJECTS */
+            .project {
+                background: white;
+                padding: 20px;
+                border-radius: 5px;
+                box-shadow: 0 0 10px rgba(0,0,0,0.05);
+                margin-top: 20px;
+            }
+
+            .project-link {
+                display: inline-block;
+                margin-top: 10px;
+                margin-right: 10px;
+                padding: 8px 14px;
+                background: #38bdf8;
+                color: #000;
+                text-decoration: none;
+                border-radius: 4px;
+                font-weight: bold;
+                transition: background 0.3s;
+            }
+
+            .project-link:hover {
+                background: #0ea5e9;
+            }
+
+            /* FOOTER */
+            footer {
+                text-align: center;
+                padding: 20px;
+                background: #1e293b;
+                color: white;
+                margin-top: 40px;
+            }
+
+            .section a {
+                color: #38bdf8;
+                text-decoration: none;
+            }
+
+            .section a:hover {
+                text-decoration: underline;
+            }
         </style>
     </head>
     <body>
-        <div class="overlay">
-            <div class="logo">N</div>
-            <h1>Welcome to NeoLogin</h1>
-            <p class="description">
-                NeoLogin is a secure and user-friendly authentication system.
-                Register to create an account or sign in to access your personalized dashboard.
+
+        <!-- HERO / HEADER -->
+        <header class="hero">
+            <h1>Hari Krishna T</h1>
+            <h2>Web Development Intern</h2>
+            <p>Web Developer</p>
+            <a href="#projects" class="btn">View Projects</a>
+        </header>
+
+        <!-- ABOUT ME SECTION -->
+        <section class="section">
+            <h3>About Me</h3>
+            <p>
+                I am a Web Development Intern with hands-on experience in building web applications using Python and Flask.
+                I focus on creating structured backend logic, authentication systems, and database-driven applications.
+                I am actively improving my skills in full-stack development and writing clean, maintainable code.
             </p>
-            <div class="button-group">
-                <form action="{{ url_for('signup') }}" method="get" style="display:inline;">
-                    <button type="submit" class="signup-btn">Sign Up</button>
-                </form>
-                <form action="{{ url_for('signin') }}" method="get" style="display:inline;">
-                    <button type="submit" class="signin-btn">Sign In</button>
-                </form>
+        </section>
+
+        <!-- SKILLS SECTION -->
+        <section class="section">
+            <h3>Skills</h3>
+            <div class="skills">
+                <div>
+                    <h4>Frontend</h4>
+                    <ul>
+                        <li>HTML</li>
+                        <li>CSS</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4>Backend</h4>
+                    <ul>
+                        <li>Python</li>
+                        <li>Flask</li>
+                        <li>MySQL</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4>Tools</h4>
+                    <ul>
+                        <li>VS Code</li>
+                    </ul>
+                </div>
             </div>
-        </div>
+        </section>
+
+        <!-- PROJECTS SECTION -->
+        <section class="section" id="projects">
+            <h3>Projects</h3>
+            <div class="project">
+                <h4>Task Management & Reward Platform</h4>
+                <p>
+                    A web-based platform where users can create accounts, sign in,
+                    and manage tasks by assigning or accepting them for rewards.
+                    The system includes admin management features.
+                </p>
+                <p><strong>Technologies:</strong> Python, Flask, MySQL</p>
+                <p><strong>Status:</strong> Under Development</p>
+
+                <a href="{{ url_for('signup') }}" class="project-link">
+                   View Live Website
+                </a>
+                <a href="https://github.com/Twilight007-2/Task-Management-Website" target="_blank" class="project-link">
+                   View Project Code
+                </a>
+            </div>
+        </section>
+
+        <!-- CONTACT SECTION -->
+        <section class="section">
+            <h3>Contact</h3>
+            <p>Email: <a href="mailto:swamythk07@gmail.com">swamythk07@gmail.com</a></p>
+        </section>
+
+        <!-- FOOTER -->
+        <footer>
+            <p>© 2025 Hari Krishna T</p>
+        </footer>
+
     </body>
     </html>
     """)
