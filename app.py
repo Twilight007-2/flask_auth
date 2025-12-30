@@ -6,8 +6,6 @@ from datetime import datetime, timedelta
 from flask import Flask, render_template_string, request, redirect, url_for, session
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
-import firebase_admin
-from firebase_admin import credentials, firestore
 
 MAX_ATTEMPTS = 5
 LOCK_TIME = timedelta(minutes=10)
@@ -39,288 +37,81 @@ users = {}
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-# Initialize Firebase Admin SDK
-try:
-    # Check for service account JSON file path in environment variable
-    cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-    
-    if cred_path and os.path.exists(cred_path):
-        # Use service account JSON file
-        cred = credentials.Certificate(cred_path)
-        firebase_admin.initialize_app(cred)
-        print(f"✅ Firebase initialized with service account: {cred_path}")
-    elif os.path.exists('firebase-service-account.json'):
-        # Use local service account file
-        cred = credentials.Certificate('firebase-service-account.json')
-        firebase_admin.initialize_app(cred)
-        print(f"✅ Firebase initialized with local service account file")
-    else:
-        # Try to use default credentials (for Google Cloud environments)
+# Simple JSON-based database file
+DB_FILE = os.path.join(basedir, "users_db.json")
+
+# Simple Database Functions
+def load_users():
+    """Load users from JSON file."""
+    if os.path.exists(DB_FILE):
         try:
-            firebase_admin.initialize_app()
-            print(f"✅ Firebase initialized with default credentials")
+            with open(DB_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
         except Exception as e:
-            print(f"⚠️  Firebase initialization failed: {e}")
-            print(f"   Please set GOOGLE_APPLICATION_CREDENTIALS environment variable")
-            print(f"   or place firebase-service-account.json in the project root")
-            raise
-    
-    # Initialize Firestore
-    db = firestore.client()
-    print(f"✅ Firestore client initialized")
-    
-except Exception as e:
-    print(f"❌ Critical: Firebase initialization failed: {e}")
-    print(f"   The app will not work without Firebase. Please configure Firebase credentials.")
-    db = None
+            print(f"Error loading users: {e}")
+            return {}
+    return {}
 
-# Firebase Firestore Helper Functions
+def save_users(users_data):
+    """Save users to JSON file."""
+    try:
+        with open(DB_FILE, 'w', encoding='utf-8') as f:
+            json.dump(users_data, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"Error saving users: {e}")
+        return False
+
 def get_user_by_email(email):
-    """Get user document by email from Firestore."""
-    if not db:
-        return None
-    try:
-        users_ref = db.collection('users')
-        query = users_ref.where('email', '==', email).limit(1).stream()
-        for doc in query:
-            user_data = doc.to_dict()
-            user_data['id'] = doc.id
-            return user_data
-        return None
-    except Exception as e:
-        print(f"Error getting user by email: {e}")
-        return None
-
-def get_user_by_mobile(mobile):
-    """Get user document by mobile from Firestore."""
-    if not db:
-        return None
-    try:
-        users_ref = db.collection('users')
-        query = users_ref.where('mobile', '==', mobile).limit(1).stream()
-        for doc in query:
-            user_data = doc.to_dict()
-            user_data['id'] = doc.id
-            return user_data
-        return None
-    except Exception as e:
-        print(f"Error getting user by mobile: {e}")
-        return None
+    """Get user by email."""
+    users_data = load_users()
+    for username, user_info in users_data.items():
+        if user_info.get('email') == email:
+            return {'username': username, **user_info}
+    return None
 
 def get_user_by_username(username):
-    """Get user document by username from Firestore."""
-    if not db:
-        return None
-    try:
-        users_ref = db.collection('users')
-        query = users_ref.where('username', '==', username).limit(1).stream()
-        for doc in query:
-            user_data = doc.to_dict()
-            user_data['id'] = doc.id
-            return user_data
-        return None
-    except Exception as e:
-        print(f"Error getting user by username: {e}")
-        return None
+    """Get user by username."""
+    users_data = load_users()
+    if username in users_data:
+        return {'username': username, **users_data[username]}
+    return None
 
-def get_user_by_id(user_id):
-    """Get user document by ID from Firestore."""
-    if not db:
-        return None
-    try:
-        doc_ref = db.collection('users').document(user_id)
-        doc = doc_ref.get()
-        if doc.exists:
-            user_data = doc.to_dict()
-            user_data['id'] = doc.id
-            return user_data
-        return None
-    except Exception as e:
-        print(f"Error getting user by ID: {e}")
-        return None
+def get_user_by_mobile(mobile):
+    """Get user by mobile number."""
+    users_data = load_users()
+    for username, user_info in users_data.items():
+        if user_info.get('mobile') == mobile:
+            return {'username': username, **user_info}
+    return None
 
-def create_user(user_data):
-    """Create a new user in Firestore."""
-    if not db:
-        return None
-    try:
-        # Remove id if present (Firestore will generate it)
-        user_data.pop('id', None)
-        # Convert datetime objects to timestamps
-        if 'lock_until' in user_data and user_data['lock_until']:
-            if isinstance(user_data['lock_until'], datetime):
-                user_data['lock_until'] = user_data['lock_until']
-        if 'otp_expiration' in user_data and user_data['otp_expiration']:
-            if isinstance(user_data['otp_expiration'], datetime):
-                user_data['otp_expiration'] = user_data['otp_expiration']
-        
-        doc_ref = db.collection('users').add(user_data)
-        return doc_ref[1].id  # Return the document ID
-    except Exception as e:
-        print(f"Error creating user: {e}")
-        return None
-
-def update_user(user_id, updates):
-    """Update user document in Firestore."""
-    if not db:
-        return False
-    try:
-        # Convert datetime objects
-        if 'lock_until' in updates and updates['lock_until']:
-            if isinstance(updates['lock_until'], datetime):
-                updates['lock_until'] = updates['lock_until']
-        if 'otp_expiration' in updates and updates['otp_expiration']:
-            if isinstance(updates['otp_expiration'], datetime):
-                updates['otp_expiration'] = updates['otp_expiration']
-        
-        doc_ref = db.collection('users').document(user_id)
-        doc_ref.update(updates)
-        return True
-    except Exception as e:
-        print(f"Error updating user: {e}")
-        return False
-
-def get_task_by_id(task_id):
-    """Get task document by ID from Firestore."""
-    if not db:
-        return None
-    try:
-        doc_ref = db.collection('tasks').document(task_id)
-        doc = doc_ref.get()
-        if doc.exists:
-            task_data = doc.to_dict()
-            task_data['id'] = doc.id
-            return task_data
-        return None
-    except Exception as e:
-        print(f"Error getting task by ID: {e}")
-        return None
-
-def create_task(task_data):
-    """Create a new task in Firestore."""
-    if not db:
-        return None
-    try:
-        task_data.pop('id', None)
-        if 'created_at' not in task_data:
-            task_data['created_at'] = datetime.utcnow()
-        doc_ref = db.collection('tasks').add(task_data)
-        return doc_ref[1].id
-    except Exception as e:
-        print(f"Error creating task: {e}")
-        return None
-
-def update_task(task_id, updates):
-    """Update task document in Firestore."""
-    if not db:
-        return False
-    try:
-        doc_ref = db.collection('tasks').document(task_id)
-        doc_ref.update(updates)
-        return True
-    except Exception as e:
-        print(f"Error updating task: {e}")
-        return False
-
-def query_tasks(filters):
-    """Query tasks with filters."""
-    if not db:
-        return []
-    try:
-        tasks_ref = db.collection('tasks')
-        query = tasks_ref
-        for field, value in filters.items():
-            query = query.where(field, '==', value)
-        tasks = []
-        for doc in query.stream():
-            task_data = doc.to_dict()
-            task_data['id'] = doc.id
-            tasks.append(task_data)
-        return tasks
-    except Exception as e:
-        print(f"Error querying tasks: {e}")
-        return []
-
-# Initialize admin user in Firestore
-_db_initialized = False
-
-def init_database():
-    """Initialize admin user in Firestore. Only runs once."""
-    global _db_initialized
-    if _db_initialized or not db:
-        return True
+def create_user(username, email, password, mobile=None):
+    """Create a new user."""
+    users_data = load_users()
+    if username in users_data:
+        return False  # Username already exists
     
-    try:
-        # Check if admin user exists
-        admin = get_user_by_email(ADMIN_EMAIL)
-        admin_by_username = get_user_by_username("Admin_No.1")
-        
-        if not admin and not admin_by_username:
-            # Create admin user
-            admin_data = {
-                'first_name': 'Admin',
-                'last_name': 'User',
-                'dob': '2000-01-01',
-                'mobile': '9999999999',
-                'email': ADMIN_EMAIL,
-                'username': 'Admin_No.1',
-                'password': generate_password_hash(ADMIN_PASSWORD),
-                'is_admin': True,
-                'reported': False,
-                'profile_photo': 'default.png',
-                'gender': 'Male',
-                'failed_attempts': 0,
-                'lock_until': None,
-                'otp': None,
-                'otp_expiration': None
-            }
-            admin_id = create_user(admin_data)
-            if admin_id:
-                print(f"✅ Admin user created successfully in Firestore.")
-            else:
-                print(f"⚠️  Failed to create admin user.")
-        elif admin:
-            # Update admin password if needed
-            if not admin.get('password', '').startswith('$2b$') and not admin.get('password', '').startswith('$2a$'):
-                update_user(admin['id'], {'password': generate_password_hash(ADMIN_PASSWORD)})
-                print(f"✅ Admin password updated.")
-        elif admin_by_username:
-            # Update admin email and password
-            updates = {'email': ADMIN_EMAIL, 'is_admin': True}
-            if not admin_by_username.get('password', '').startswith('$2b$') and not admin_by_username.get('password', '').startswith('$2a$'):
-                updates['password'] = generate_password_hash(ADMIN_PASSWORD)
-            update_user(admin_by_username['id'], updates)
-            print(f"✅ Admin user updated.")
-        
-        # Load all users into memory (optional, for backward compatibility)
-        if db:
-            all_users_docs = db.collection('users').stream()
-            for doc in all_users_docs:
-                user_data = doc.to_dict()
-                user_data['id'] = doc.id
-                users[user_data.get('username', '')] = {
-                    "first_name": user_data.get('first_name', ''),
-                    "last_name": user_data.get('last_name', ''),
-                    "dob": user_data.get('dob', ''),
-                    "mobile": user_data.get('mobile', ''),
-                    "email": user_data.get('email', ''),
-                    "username": user_data.get('username', ''),
-                    "password": user_data.get('password', ''),
-                    "profile_photo": user_data.get('profile_photo', 'default.png'),
-                    "gender": user_data.get('gender', ''),
-                }
-        print(f"✅ Firestore initialized successfully. Loaded {len(users)} users.")
-        _db_initialized = True
-        return True
-    except Exception as e:
-        print(f"⚠️  Warning: Could not initialize Firestore: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+    # Check if email already exists
+    for existing_username, user_info in users_data.items():
+        if user_info.get('email') == email:
+            return False  # Email already exists
+    
+    users_data[username] = {
+        'email': email,
+        'password': generate_password_hash(password),
+        'mobile': mobile or '',
+        'created_at': datetime.utcnow().isoformat()
+    }
+    return save_users(users_data)
 
-# Initialize database at startup
-if db:
-    init_database()
+def update_user_password(username, new_password):
+    """Update user password."""
+    users_data = load_users()
+    if username in users_data:
+        users_data[username]['password'] = generate_password_hash(new_password)
+        return save_users(users_data)
+    return False
+
 def calculate_age(dob_str):
     try:
         dob = datetime.strptime(dob_str, "%Y-%m-%d")
@@ -1307,7 +1098,7 @@ def signin():
             if not user:
                 user = get_user_by_mobile(identifier)
         except Exception as e:
-            print(f"Firestore query error during signin: {e}")
+            print(f"Database query error during signin: {e}")
             message = "Database error. Please try again later."
             return render_template_string(r"""
     <!DOCTYPE html>
@@ -1409,14 +1200,17 @@ def signin():
                     password_valid = (user_password == password) if user_password else False
                     # If login successful with plain text, hash it for future use
                     if password_valid:
-                        update_user(user['id'], {'password': generate_password_hash(password)})
+                        update_user_password(user.get('username', ''), password)
             except Exception as e:
                 print(f"Error during password verification: {e}")
                 password_valid = False
             
             if password_valid:
                 # ✅ Successful login
-                update_user(user['id'], {'failed_attempts': 0, 'lock_until': None})
+                session['logged_in'] = True
+                session['user_email'] = user.get('email', '')
+                session['username'] = user.get('username', '')
+                return redirect(url_for('dashboard', email=user.get('email', '')))
 
                 session['logged_in'] = True
                 session['user_email'] = user.get('email', '')
@@ -1433,19 +1227,7 @@ def signin():
 
             else:
                 # 3️⃣ Failed login attempt
-                try:
-                    failed_attempts = user.get('failed_attempts', 0) + 1
-                    updates = {'failed_attempts': failed_attempts}
-                    if failed_attempts >= MAX_ATTEMPTS:
-                        updates['lock_until'] = datetime.utcnow() + LOCK_TIME
-                        message = f"Too many failed attempts. Account locked for {LOCK_TIME.seconds // 60} minutes."
-                    else:
-                        remaining = MAX_ATTEMPTS - failed_attempts
-                        message = f"Invalid password. {remaining} attempts remaining."
-                    update_user(user['id'], updates)
-                except Exception as e:
-                    print(f"Error updating failed attempts: {e}")
-                    message = "Invalid password. Please try again."
+                message = "Invalid password. Please try again."
 
         else:
             message = "Invalid email/mobile or password"
@@ -2035,7 +1817,11 @@ def verify_otp():
             """)
 
         # Update password
-        update_user(user['id'], {'password': generate_password_hash(password), 'otp': None, 'otp_expiration': None})
+        update_user_password(user.get('username', ''), password)
+        
+        # Clear OTP from session
+        session.pop('reset_otp', None)
+        session.pop('reset_otp_expiration', None)
 
         session.pop("reset_email", None)
 
