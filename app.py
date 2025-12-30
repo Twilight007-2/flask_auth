@@ -87,7 +87,7 @@ def get_user_by_mobile(mobile):
             return {'username': username, **user_info}
     return None
 
-def create_user(username, email, password, mobile=None):
+def create_user(username, email, password, mobile=None, first_name=None, last_name=None, dob=None, gender=None, profile_photo=None):
     """Create a new user."""
     users_data = load_users()
     if username in users_data:
@@ -102,6 +102,11 @@ def create_user(username, email, password, mobile=None):
         'email': email,
         'password': generate_password_hash(password),
         'mobile': mobile or '',
+        'first_name': first_name or '',
+        'last_name': last_name or '',
+        'dob': dob or '',
+        'gender': gender or '',
+        'profile_photo': profile_photo or 'default.png',
         'created_at': datetime.utcnow().isoformat()
     }
     return save_users(users_data)
@@ -2156,20 +2161,31 @@ def dashboard(email):
     if not user_db:
         return redirect(url_for('signin'))
     
-    # Simple user data from JSON database
+    # Get all user data from JSON database
+    first_name = user_db.get('first_name', '')
+    last_name = user_db.get('last_name', '')
+    profile_photo = user_db.get('profile_photo', 'default.png')
+    
+    # Build full name
+    if first_name and last_name:
+        full_name = f"{first_name} {last_name}"
+    elif first_name:
+        full_name = first_name
+    elif last_name:
+        full_name = last_name
+    else:
+        full_name = user_db.get('username', user_db.get('email', '').split('@')[0])
+    
     user = {
         "email": user_db.get('email', ''),
         "username": user_db.get('username', ''),
         "mobile": user_db.get('mobile', ''),
-        "first_name": user_db.get('username', '').split('_')[0] if user_db.get('username') else '',  # Extract first part of username
-        "last_name": '',  # Not stored in simple DB
-        "dob": '',  # Not stored in simple DB
-        "profile_photo": "default.png",  # Default
-        "gender": ''  # Not stored in simple DB
+        "first_name": first_name,
+        "last_name": last_name,
+        "dob": user_db.get('dob', ''),
+        "gender": user_db.get('gender', ''),
+        "profile_photo": profile_photo
     }
-
-    # Use username as display name if first_name is not available
-    full_name = user['username'] if user['username'] else user['email'].split('@')[0]
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -2488,11 +2504,11 @@ def dashboard(email):
             <div class="dashboard-card">
                 <div class="profile-section">
                     <div class="profile-picture-container">
-                        {% if user.get('profile_photo') and user['profile_photo'] != 'default.png' %}
-                            <img src="{{ url_for('static', filename='uploads/' + user['profile_photo']) }}"
+                        {% if user.get('profile_photo') and user.get('profile_photo') != 'default.png' %}
+                            <img src="{{ url_for('static', filename='uploads/' + user.get('profile_photo', 'default.png')) }}"
                                 alt="Profile Photo"
                                 class="profile-pic"
-                                onerror="this.src='{{ url_for('static', filename='uploads/default.png') }}';">
+                                onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default.png') }}';">
                         {% else %}
                             <img src="{{ url_for('static', filename='uploads/default.png') }}"
                                 alt="Profile Photo"
