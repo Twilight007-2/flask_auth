@@ -416,7 +416,7 @@ def signup():
                     <label>Profile Photo</label>
                     <input type="file" name="profile_photo" accept="image/*">
                     <label>Date of Birth</label>
-                    <input type="date" name="dob" value="{{ '' if clear_dob else request.form.get('dob','') }}" min="1900-01-01" max="2024-12-31" required>     
+                    <input type="date" name="dob" id="dob" value="{{ '' if clear_dob else request.form.get('dob','') }}" min="1900-01-01" max="2024-12-31" required onkeydown="return false;" onpaste="return false;">     
                     <label for="gender">Gender:</label>
                     <select name="gender" id="gender" required style="margin-bottom:15px;">
                         <option value="" disabled selected>Select your gender</option>
