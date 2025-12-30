@@ -2931,7 +2931,8 @@ def switch_task(task_id):
     if not user:
         return redirect(url_for("signin"))
 
-    current_active_tasks = query_tasks({'assigned_to': user['id'], 'active_for_user': True, 'completed': False})
+    user_identifier = user.get('username', user.get('email', ''))
+    current_active_tasks = query_tasks({'assigned_to': user_identifier, 'active_for_user': True, 'completed': False})
     current_active = current_active_tasks[0] if current_active_tasks else None
 
     new_task = get_task_by_id(str(task_id))
@@ -2959,8 +2960,9 @@ def start_task(task_id):
     if not user:
         return redirect(url_for("signin"))
 
+    user_identifier = user.get('username', user.get('email', ''))
     # Deactivate current active task
-    current_tasks = query_tasks({'assigned_to': user['id'], 'active_for_user': True, 'completed': False})
+    current_tasks = query_tasks({'assigned_to': user_identifier, 'active_for_user': True, 'completed': False})
     current = current_tasks[0] if current_tasks else None
 
     if current:
@@ -2968,7 +2970,7 @@ def start_task(task_id):
 
     # Activate selected task
     task = get_task_by_id(str(task_id))
-    if task and task.get('assigned_to') == user['id'] and not task.get('completed', False):
+    if task and task.get('assigned_to') == user_identifier and not task.get('completed', False):
         update_task(task['id'], {'active_for_user': True})
 
     return redirect(url_for("my_tasks"))
