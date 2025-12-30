@@ -112,6 +112,76 @@ def update_user_password(username, new_password):
         return save_users(users_data)
     return False
 
+# ================= TASK DATABASE FUNCTIONS =================
+def load_tasks():
+    """Load tasks from the JSON database file."""
+    if not os.path.exists(TASKS_DB_FILE):
+        return {}
+    with open(TASKS_DB_FILE, 'r') as f:
+        return json.load(f)
+
+def save_tasks(tasks_data):
+    """Save tasks to the JSON database file."""
+    try:
+        with open(TASKS_DB_FILE, 'w') as f:
+            json.dump(tasks_data, f, indent=4)
+        return True
+    except Exception as e:
+        print(f"Error saving tasks: {e}")
+        return False
+
+def create_task(task_data):
+    """Create a new task."""
+    tasks_data = load_tasks()
+    task_id = str(len(tasks_data) + 1)  # Simple ID generation
+    # Ensure unique ID
+    while task_id in tasks_data:
+        task_id = str(int(task_id) + 1)
+    
+    task_data['id'] = task_id
+    task_data['created_at'] = datetime.utcnow().isoformat()
+    tasks_data[task_id] = task_data
+    if save_tasks(tasks_data):
+        return task_id
+    return None
+
+def get_task_by_id(task_id):
+    """Get task by ID."""
+    tasks_data = load_tasks()
+    task_id_str = str(task_id)
+    if task_id_str in tasks_data:
+        return tasks_data[task_id_str]
+    return None
+
+def query_tasks(filters=None):
+    """Query tasks with optional filters."""
+    tasks_data = load_tasks()
+    tasks = []
+    
+    for task_id, task_info in tasks_data.items():
+        task_info['id'] = task_id
+        if filters:
+            match = True
+            for key, value in filters.items():
+                if task_info.get(key) != value:
+                    match = False
+                    break
+            if match:
+                tasks.append(task_info)
+        else:
+            tasks.append(task_info)
+    
+    return tasks
+
+def update_task(task_id, updates):
+    """Update a task."""
+    tasks_data = load_tasks()
+    task_id_str = str(task_id)
+    if task_id_str in tasks_data:
+        tasks_data[task_id_str].update(updates)
+        return save_tasks(tasks_data)
+    return False
+
 def calculate_age(dob_str):
     try:
         dob = datetime.strptime(dob_str, "%Y-%m-%d")
