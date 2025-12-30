@@ -395,6 +395,25 @@ def signup():
                         emailInput.focus();
                     }
                 });
+                // Prevent typing in DOB field - only allow calendar selection
+                const dobInput = document.getElementById('dob');
+                if (dobInput) {
+                    dobInput.addEventListener('keydown', function(e) {
+                        // Allow arrow keys, tab, and delete for navigation
+                        if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Delete', 'Backspace'].includes(e.key)) {
+                            e.preventDefault();
+                            return false;
+                        }
+                    });
+                    dobInput.addEventListener('keypress', function(e) {
+                        e.preventDefault();
+                        return false;
+                    });
+                    dobInput.addEventListener('paste', function(e) {
+                        e.preventDefault();
+                        return false;
+                    });
+                }
             };
         </script>
     </head>
