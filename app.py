@@ -41,17 +41,28 @@ users = {}
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-# Database configuration - Use SQLite for Render (MySQL localhost won't work on Render)
-# For production, use PostgreSQL by setting DATABASE_URL environment variable in Render
+# Database configuration - Use SQLite for local development (persistent file-based)
+# For production on Render, use PostgreSQL by setting DATABASE_URL environment variable
 database_url = os.environ.get('DATABASE_URL')
+
+# Remove any MySQL configuration from environment to avoid connection errors
+if database_url and ('mysql' in database_url.lower() or 'mariadb' in database_url.lower()):
+    print("⚠️  MySQL/MariaDB detected in DATABASE_URL but not supported. Using SQLite instead.")
+    database_url = None
+
 if database_url:
     # Render PostgreSQL - replace postgres:// with postgresql://
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    print(f"✅ Using PostgreSQL database from DATABASE_URL")
 else:
-    # SQLite fallback (works on Render)
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "neologin.db")}'
+    # SQLite fallback - persistent file-based database
+    db_path = os.path.join(basedir, "neologin.db")
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    print(f"✅ Using SQLite database at: {db_path}")
+    # Ensure the database file directory exists
+    os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else '.', exist_ok=True)
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -97,64 +108,86 @@ class Task(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Initialize database with error handling
-try:
-    with app.app_context():
-        db.create_all()
-        
-        # Create admin user if it doesn't exist (check by both email and username)
-        admin_by_email = User.query.filter_by(email=ADMIN_EMAIL).first()
-        admin_by_username = User.query.filter_by(username="Admin_No.1").first()
-        
-        if not admin_by_email and not admin_by_username:
-            try:
-                admin = User(
-                    first_name="Admin",
-                    last_name="User",
-                    dob="2000-01-01",
-                    mobile="9999999999",
-                    email=ADMIN_EMAIL,
-                    username="Admin_No.1",
-                    password=generate_password_hash(ADMIN_PASSWORD),
-                    is_admin=True,
-                    gender="Male"
-                )
-                db.session.add(admin)
-                db.session.commit()
-                print(f"✅ Admin user created successfully.")
-            except IntegrityError as ie:
-                db.session.rollback()
-                print(f"⚠️  Admin user already exists (IntegrityError). Skipping creation.")
-        elif admin_by_email:
-            # Ensure admin user has correct password hash
-            if not admin_by_email.password.startswith('$2b$') and not admin_by_email.password.startswith('$2a$'):
-                admin_by_email.password = generate_password_hash(ADMIN_PASSWORD)
-                db.session.commit()
-        elif admin_by_username:
-            # Admin exists by username but not email - update email
-            admin_by_username.email = ADMIN_EMAIL
-            admin_by_username.is_admin = True
-            if not admin_by_username.password.startswith('$2b$') and not admin_by_username.password.startswith('$2a$'):
-                admin_by_username.password = generate_password_hash(ADMIN_PASSWORD)
-            db.session.commit()
+# Initialize database with error handling - Only run once at startup
+_db_initialized = False
 
-        # Load all users into memory
-        all_users = User.query.all()
-        for u in all_users:
-            users[u.username] = {
-                "first_name": u.first_name,
-                "last_name": u.last_name,
-                "dob": u.dob,
-                "mobile": u.mobile,
-                "email": u.email,
-                "username": u.username,
-                "password": u.password,
-            }
-        print(f"✅ Database initialized successfully. Loaded {len(users)} users.")
-except Exception as e:
-    print(f"⚠️  Warning: Could not initialize database: {e}")
-    print(f"   The app will continue to run, but database features may not work.")
-    print(f"   Currently using: {app.config['SQLALCHEMY_DATABASE_URI']}")
+def init_database():
+    """Initialize database tables and admin user. Only runs once."""
+    global _db_initialized
+    if _db_initialized:
+        return True
+    
+    try:
+        with app.app_context():
+            # Create all tables if they don't exist
+            db.create_all()
+            print(f"✅ Database tables created/verified.")
+            
+            # Create admin user if it doesn't exist (check by both email and username)
+            admin_by_email = User.query.filter_by(email=ADMIN_EMAIL).first()
+            admin_by_username = User.query.filter_by(username="Admin_No.1").first()
+            
+            if not admin_by_email and not admin_by_username:
+                try:
+                    admin = User(
+                        first_name="Admin",
+                        last_name="User",
+                        dob="2000-01-01",
+                        mobile="9999999999",
+                        email=ADMIN_EMAIL,
+                        username="Admin_No.1",
+                        password=generate_password_hash(ADMIN_PASSWORD),
+                        is_admin=True,
+                        gender="Male"
+                    )
+                    db.session.add(admin)
+                    db.session.commit()
+                    print(f"✅ Admin user created successfully.")
+                except IntegrityError as ie:
+                    db.session.rollback()
+                    print(f"⚠️  Admin user already exists (IntegrityError). Skipping creation.")
+            elif admin_by_email:
+                # Ensure admin user has correct password hash
+                if not admin_by_email.password.startswith('$2b$') and not admin_by_email.password.startswith('$2a$'):
+                    admin_by_email.password = generate_password_hash(ADMIN_PASSWORD)
+                    db.session.commit()
+                    print(f"✅ Admin password updated.")
+            elif admin_by_username:
+                # Admin exists by username but not email - update email
+                admin_by_username.email = ADMIN_EMAIL
+                admin_by_username.is_admin = True
+                if not admin_by_username.password.startswith('$2b$') and not admin_by_username.password.startswith('$2a$'):
+                    admin_by_username.password = generate_password_hash(ADMIN_PASSWORD)
+                db.session.commit()
+                print(f"✅ Admin user updated.")
+
+            # Load all users into memory (optional, for backward compatibility)
+            all_users = User.query.all()
+            for u in all_users:
+                users[u.username] = {
+                    "first_name": u.first_name,
+                    "last_name": u.last_name,
+                    "dob": u.dob,
+                    "mobile": u.mobile,
+                    "email": u.email,
+                    "username": u.username,
+                    "password": u.password,
+                    "profile_photo": u.profile_photo or "default.png",
+                    "gender": u.gender,
+                }
+            print(f"✅ Database initialized successfully. Loaded {len(users)} users from database.")
+            _db_initialized = True
+            return True
+    except Exception as e:
+        print(f"⚠️  Warning: Could not initialize database: {e}")
+        print(f"   The app will continue to run, but database features may not work.")
+        print(f"   Currently using: {app.config['SQLALCHEMY_DATABASE_URI']}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+# Initialize database at startup
+init_database()
 def calculate_age(dob_str):
     try:
         dob = datetime.strptime(dob_str, "%Y-%m-%d")
