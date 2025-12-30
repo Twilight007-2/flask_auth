@@ -2741,8 +2741,9 @@ def accept_task(task_id):
 
     # Only approved & unassigned tasks can be accepted
     if task and task.get('status') == "approved" and not task.get('assigned_to'):
+        user_identifier = user.get('username', user.get('email', ''))
         update_task(task['id'], {
-            'assigned_to': user['id'],
+            'assigned_to': user_identifier,
             'status': 'accepted',
             'active_for_user': False,  # goes to Pending Tasks
             'completed': False
@@ -2763,7 +2764,8 @@ def complete_task(task_id):
 
     task = get_task_by_id(str(task_id))
 
-    if task and task.get('assigned_to') == user['id'] and not task.get('completed', False):
+    user_identifier = user.get('username', user.get('email', ''))
+    if task and task.get('assigned_to') == user_identifier and not task.get('completed', False):
         update_task(task['id'], {'completed': True, 'active_for_user': False})
 
     # 🔴 THIS is the fix
@@ -2780,10 +2782,11 @@ def my_tasks():
         return redirect(url_for("signin"))
     
     # Fetch tasks
-    active_tasks = query_tasks({'assigned_to': user_obj['id'], 'active_for_user': True, 'completed': False})
+    user_identifier = user_obj.get('username', user_obj.get('email', ''))
+    active_tasks = query_tasks({'assigned_to': user_identifier, 'active_for_user': True, 'completed': False})
     active_task = active_tasks[0] if active_tasks else None
-    pending_tasks = query_tasks({'assigned_to': user_obj['id'], 'active_for_user': False, 'completed': False})
-    completed_tasks = query_tasks({'assigned_to': user_obj['id'], 'completed': True})
+    pending_tasks = query_tasks({'assigned_to': user_identifier, 'active_for_user': False, 'completed': False})
+    completed_tasks = query_tasks({'assigned_to': user_identifier, 'completed': True})
 
     return render_template_string(r"""
     <!DOCTYPE html>
