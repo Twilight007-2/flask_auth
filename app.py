@@ -2329,6 +2329,25 @@ def dashboard(email):
             .profile-pic:hover {
                 transform: scale(1.05);
             }
+            
+            .profile-pic-fallback {
+                width: 150px;
+                height: 150px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.1) 100%);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-size: 48px;
+                border: 5px solid white;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                transition: transform 0.3s ease;
+            }
+            
+            .profile-pic-fallback:hover {
+                transform: scale(1.05);
+            }
 
             .edit-photo-btn {
                 position: absolute;
