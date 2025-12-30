@@ -3097,6 +3097,8 @@ def view_tasks():
                                 <a href="{{ url_for('accept_task', task_id=t.get('id', '')) }}" class="accept-btn">
                                     Accept Task
                                 </a>
+                            {% elif t.get('status') == 'pending' %}
+                                ⏳ Pending Approval
                             {% else %}
                                 —
                             {% endif %}
