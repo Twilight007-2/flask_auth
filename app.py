@@ -1351,7 +1351,7 @@ def verify_otp():
 </div>
 </body>
 </html>
-""")
+""", entered_otp=entered_otp)
 
 @app.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password(token):
