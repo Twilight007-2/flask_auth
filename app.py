@@ -607,9 +607,30 @@ def signup():
         pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&]).{8,}$'
         mobile_pattern = r'^[6-9]\d{9}$'
         # Check database for existing users instead of in-memory dictionary
-        mobile_exists = User.query.filter_by(mobile=mobile).first() is not None
-        email_exists = User.query.filter_by(email=email).first() is not None
-        username_exists = User.query.filter_by(username=username).first() is not None
+        try:
+            mobile_exists = User.query.filter_by(mobile=mobile).first() is not None
+            email_exists = User.query.filter_by(email=email).first() is not None
+            username_exists = User.query.filter_by(username=username).first() is not None
+        except Exception as e:
+            print(f"Database query error during signup validation: {e}")
+            message = "Database error. Please try again later."
+            return render_template_string(r"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Error - NeoLogin</title>
+        <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+            .error { color: #c0392b; font-size: 18px; }
+            a { color: #667eea; text-decoration: none; }
+        </style>
+    </head>
+    <body>
+        <div class="error">{{ message }}</div>
+        <a href="{{ url_for('signup') }}">Go back to Sign Up</a>
+    </body>
+    </html>
+    """, message=message)
 
         if not (fname and lname and dob and mobile and email and username and password and confirm_password):
             message = "All fields are required"
@@ -669,17 +690,23 @@ def signup():
                 return redirect(url_for('signin'))
             except IntegrityError as e:
                 db.session.rollback()
-                if "username" in str(e).lower():
+                print(f"IntegrityError during signup: {e}")
+                error_str = str(e).lower()
+                if "username" in error_str or "unique constraint" in error_str and "username" in error_str:
                     message = "Username already exists"
                     clear_username = True
-                elif "email" in str(e).lower():
+                elif "email" in error_str:
                     message = "Email ID already exists"
                     clear_email = True
-                elif "mobile" in str(e).lower():
+                elif "mobile" in error_str:
                     message = "Mobile number already exists"
                     clear_mobile = True
                 else:
-                    message = "Registration failed. Please try again."
+                    message = f"Registration failed: {str(e)}. Please try again."
+            except Exception as e:
+                db.session.rollback()
+                print(f"Unexpected error during signup: {e}")
+                message = f"Registration failed due to an error. Please try again. Error: {str(e)}"
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -1108,9 +1135,30 @@ def signin():
         identifier = request.form.get("identifier", "").strip()
         password = request.form.get("password", "").strip()
 
-        user = User.query.filter(
-            (User.email == identifier) | (User.mobile == identifier)
-        ).first()
+        try:
+            user = User.query.filter(
+                (User.email == identifier) | (User.mobile == identifier)
+            ).first()
+        except Exception as e:
+            print(f"Database query error during signin: {e}")
+            message = "Database error. Please try again later."
+            return render_template_string(r"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Error - NeoLogin</title>
+        <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+            .error { color: #c0392b; font-size: 18px; }
+            a { color: #667eea; text-decoration: none; }
+        </style>
+    </head>
+    <body>
+        <div class="error">{{ message }}</div>
+        <a href="{{ url_for('signin') }}">Go back to Sign In</a>
+    </body>
+    </html>
+    """, message=message)
 
         if user:
             # 1️⃣ Check if account is locked
@@ -1166,26 +1214,31 @@ def signin():
         <div class="overlay">
             <div class="box">
                 <h2>Account Locked!</h2>
-                <p>{YOU HAVE TRIED THE WRONG PASSWORD FOR TOO MANY TIMES WAIT FOR 10 MINS AND COOL UR HEAD BRO !!!!}</p>
+                <p>You have tried the wrong password too many times. Please wait 10 minutes and try again.</p>
                 <a href="{{ url_for('signin') }}">Back to Sign In</a>
             </div>
         </div>
     </body>
     </html>
     """, message=message)
+            
             # 2️⃣ Password check - support both hashed and plain text (for backward compatibility)
             password_valid = False
-            # Check if password is hashed (starts with $2b$ or $2a$)
-            if user.password.startswith('$2b$') or user.password.startswith('$2a$'):
-                # Password is hashed, use check_password_hash
-                password_valid = check_password_hash(user.password, password)
-            else:
-                # Password is plain text (old format), compare directly
-                password_valid = (user.password == password)
-                # If login successful with plain text, hash it for future use
-                if password_valid:
-                    user.password = generate_password_hash(password)
-                    db.session.commit()
+            try:
+                # Check if password is hashed (starts with $2b$ or $2a$)
+                if user.password and (user.password.startswith('$2b$') or user.password.startswith('$2a$')):
+                    # Password is hashed, use check_password_hash
+                    password_valid = check_password_hash(user.password, password)
+                else:
+                    # Password is plain text (old format), compare directly
+                    password_valid = (user.password == password) if user.password else False
+                    # If login successful with plain text, hash it for future use
+                    if password_valid:
+                        user.password = generate_password_hash(password)
+                        db.session.commit()
+            except Exception as e:
+                print(f"Error during password verification: {e}")
+                password_valid = False
             
             if password_valid:
                 # ✅ Successful login
@@ -1207,14 +1260,18 @@ def signin():
 
             else:
                 # 3️⃣ Failed login attempt
-                user.failed_attempts += 1
-                if user.failed_attempts >= MAX_ATTEMPTS:
-                    user.lock_until = datetime.utcnow() + LOCK_TIME
-                    message = f"Too many failed attempts. Account locked for {LOCK_TIME.seconds // 60} minutes."
-                else:
-                    remaining = MAX_ATTEMPTS - user.failed_attempts
-                    message = f"Invalid password. {remaining} attempts remaining."
-                db.session.commit()
+                try:
+                    user.failed_attempts += 1
+                    if user.failed_attempts >= MAX_ATTEMPTS:
+                        user.lock_until = datetime.utcnow() + LOCK_TIME
+                        message = f"Too many failed attempts. Account locked for {LOCK_TIME.seconds // 60} minutes."
+                    else:
+                        remaining = MAX_ATTEMPTS - user.failed_attempts
+                        message = f"Invalid password. {remaining} attempts remaining."
+                    db.session.commit()
+                except Exception as e:
+                    print(f"Error updating failed attempts: {e}")
+                    message = "Invalid password. Please try again."
 
         else:
             message = "Invalid email/mobile or password"
