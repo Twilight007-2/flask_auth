@@ -2971,15 +2971,13 @@ def accept_task(task_id):
     task = Task.query.get(task_id)
 
     # Only approved & unassigned tasks can be accepted
-    if task and task.status == "approved" and not task.assigned_to:
-        task.assigned_to = user.id
-        task.status = "accepted"
-
-    # 🔥 ADD THESE TWO LINES
-        task.active_for_user = False   # goes to Pending Tasks
-        task.completed = False
-
-        db.session.commit()
+    if task and task.get('status') == "approved" and not task.get('assigned_to'):
+        update_task(task['id'], {
+            'assigned_to': user['id'],
+            'status': 'accepted',
+            'active_for_user': False,  # goes to Pending Tasks
+            'completed': False
+        })
 
 
     return redirect(url_for("view_tasks"))
@@ -3091,12 +3089,12 @@ def my_tasks():
                 <table>
                     <tr><th>ID</th><th>Title</th><th>Description</th><th>Reward</th><th>Action</th></tr>
                     <tr>
-                        <td>{{ active_task.id }}</td>
-                        <td>{{ active_task.title }}</td>
-                        <td>{{ active_task.description }}</td>
-                        <td>{{ active_task.reward }}</td>
+                        <td>{{ active_task.get('id', '') }}</td>
+                        <td>{{ active_task.get('title', '') }}</td>
+                        <td>{{ active_task.get('description', '') }}</td>
+                        <td>{{ active_task.get('reward', '') }}</td>
                         <td>
-                            <form method="POST" action="{{ url_for('complete_task', task_id=active_task.id) }}">
+                            <form method="POST" action="{{ url_for('complete_task', task_id=active_task.get('id', '')) }}">
                                 <button type="submit" class="complete-btn">Mark Completed</button>
                             </form>
                         </td>
@@ -3112,12 +3110,12 @@ def my_tasks():
                     <tr><th>ID</th><th>Title</th><th>Description</th><th>Reward</th><th>Action</th></tr>
                     {% for t in pending_tasks %}
                     <tr>
-                        <td>{{ t.id }}</td>
-                        <td>{{ t.title }}</td>
-                        <td>{{ t.description }}</td>
-                        <td>{{ t.reward }}</td>
+                        <td>{{ t.get('id', '') }}</td>
+                        <td>{{ t.get('title', '') }}</td>
+                        <td>{{ t.get('description', '') }}</td>
+                        <td>{{ t.get('reward', '') }}</td>
                         <td>
-                            <a href="{{ url_for('switch_task', task_id=t.id) }}" class="start-btn">
+                            <a href="{{ url_for('switch_task', task_id=t.get('id', '')) }}" class="start-btn">
                                 Switch To This Task
                             </a>
                         </td>
@@ -3177,7 +3175,7 @@ def switch_task(task_id):
         return redirect(url_for("my_tasks"))
 
     # 🔥 SAFETY CHECK
-    if current_active and current_active.id == new_task.id:
+    if current_active and current_active.get('id') == new_task.get('id'):
         return redirect(url_for("my_tasks"))
 
     if current_active:
@@ -3557,7 +3555,7 @@ def view_users():
         <!-- Username -->
         <td>
             <form method="POST"
-                action="{{ url_for('update_username', user_id=u.id) }}">
+                action="{{ url_for('update_username', user_id=u.get('id', '')) }}">
                 <input type="text"
                         name="username"
                         value="{{ u.username }}"
@@ -3569,7 +3567,7 @@ def view_users():
         </td>
         <!-- GENDER -->
         <td>
-            <form method="POST" action="{{ url_for('update_gender', user_id=u.id) }}">
+            <form method="POST" action="{{ url_for('update_gender', user_id=u.get('id', '')) }}">
                 <select name="gender" class="username-input" disabled>
                     <option value="Male" {% if u.gender == 'Male' %}selected{% endif %}>Male</option>
                     <option value="Female" {% if u.gender == 'Female' %}selected{% endif %}>Female</option>
@@ -3590,12 +3588,12 @@ def view_users():
         <!-- ADMIN ACTION -->
         <td>
             {% if not u.is_admin %}
-                <a href="{{ url_for('make_admin', user_id=u.id) }}"
+                <a href="{{ url_for('make_admin', user_id=u.get('id', '')) }}"
                     onclick="return confirm('Make this user an admin?')">
                     👑 Make Admin 👑
                 </a>
             {% elif u.is_admin and u.email != session.get('user_email') %}
-                <a href="{{ url_for('remove_admin', user_id=u.id) }}"
+                <a href="{{ url_for('remove_admin', user_id=u.get('id', '')) }}"
                     onclick="return confirm('Remove admin rights from this user?')">
                     🚫 Remove Admin 🚫
                     </a>
@@ -3645,18 +3643,18 @@ def update_username(user_id):
         return redirect(url_for("view_users"))
 
 
-    user = User.query.get(user_id)
+    user = get_user_by_id(str(user_id))
     if user:
-        old_username = user.username
-        user.username = new_username
-        db.session.commit()
+        old_username = user.get('username', '')
+        update_user(user['id'], {'username': new_username})
 
         # Sync in-memory dict
-        users[new_username] = users.pop(old_username)
-        users[new_username]["username"] = new_username
+        if old_username in users:
+            users[new_username] = users.pop(old_username)
+            users[new_username]["username"] = new_username
 
         # 🔥 ADD THESE 3 LINES ONLY
-        if session.get("user_email") == user.email:
+        if session.get("user_email") == user.get('email', ''):
             session.clear()
             return redirect(url_for("signin"))
 
@@ -3668,22 +3666,28 @@ def update_name(user_id):
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
 
-    user = User.query.get(user_id)
+    user = get_user_by_id(str(user_id))
     if not user:
         return redirect(url_for("view_users"))
 
     new_first = request.form.get("first_name")
     new_last = request.form.get("last_name")
 
+    updates = {}
     if new_first:
-        user.first_name = new_first
-        users[user.username]["first_name"] = new_first
+        updates['first_name'] = new_first
+        username = user.get('username', '')
+        if username in users:
+            users[username]["first_name"] = new_first
 
     if new_last:
-        user.last_name = new_last
-        users[user.username]["last_name"] = new_last
+        updates['last_name'] = new_last
+        username = user.get('username', '')
+        if username in users:
+            users[username]["last_name"] = new_last
 
-    db.session.commit()
+    if updates:
+        update_user(user['id'], updates)
 
     return redirect(url_for("view_users"))
 
@@ -3693,12 +3697,11 @@ def update_gender(user_id):
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
 
-    user = User.query.get(user_id)
+    user = get_user_by_id(str(user_id))
     if user:
         new_gender = request.form.get("gender", "").strip()
         if new_gender:
-            user.gender = new_gender
-            db.session.commit()
+            update_user(user['id'], {'gender': new_gender})
     return redirect(url_for("view_users"))
 
 # ================= UPDATE RECOVERY KEYWORD (ADMIN ONLY) =================
@@ -3707,13 +3710,12 @@ def update_recovery(user_id):
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
 
-    user = User.query.get(user_id)
+    user = get_user_by_id(str(user_id))
     if user:
         new_keyword = request.form.get("recovery_keyword", "").strip()
         if new_keyword:
             from werkzeug.security import generate_password_hash
-            user.recovery_keyword_hash = generate_password_hash(new_keyword)
-            db.session.commit()
+            update_user(user['id'], {'recovery_keyword_hash': generate_password_hash(new_keyword)})
     return redirect(url_for("view_users"))
 
 # ================= DELETE USER (ADMIN ONLY) =================
@@ -3722,12 +3724,16 @@ def delete_user(user_id):
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
 
-    user = User.query.get(user_id)
+    user = get_user_by_id(str(user_id))
     
     if user:
-        db.session.delete(user)
-        db.session.commit()
-        users.pop(user.username, None)
+        # Delete from Firestore
+        if db:
+            db.collection('users').document(user['id']).delete()
+        # Remove from in-memory dict
+        username = user.get('username', '')
+        if username in users:
+            users.pop(username, None)
 
     return redirect(url_for("view_users"))
 
@@ -3984,10 +3990,9 @@ def approve_task(task_id):
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
 
-    task = Task.query.get(task_id)
+    task = get_task_by_id(str(task_id))
     if task:
-        task.status = "approved"
-        db.session.commit()
+        update_task(task['id'], {'status': 'approved'})
     return redirect(url_for("admin_task_management"))
 
 # ================= ADMIN TASK MANAGEMENT =================
@@ -4007,8 +4012,27 @@ def admin_task_management():
         return redirect(url_for("admin_task_management"))
 
     # Show all tasks
-    tasks = Task.query.order_by(Task.created_at.desc()).all()
-    users = User.query.all()
+    all_tasks_docs = db.collection('tasks').order_by('created_at', direction=firestore.Query.DESCENDING).stream() if db else []
+    tasks = []
+    for doc in all_tasks_docs:
+        task_data = doc.to_dict()
+        task_data['id'] = doc.id
+        # Get creator and assignee usernames
+        if task_data.get('created_by'):
+            creator = get_user_by_id(task_data['created_by'])
+            task_data['creator'] = {'username': creator.get('username', 'Unknown')} if creator else None
+        if task_data.get('assigned_to'):
+            assignee = get_user_by_id(task_data['assigned_to'])
+            task_data['assignee'] = {'username': assignee.get('username', 'Unknown')} if assignee else None
+        tasks.append(task_data)
+    
+    # Get all users for display
+    all_users_docs = db.collection('users').stream() if db else []
+    users_list = []
+    for doc in all_users_docs:
+        user_data = doc.to_dict()
+        user_data['id'] = doc.id
+        users_list.append(user_data)
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -4113,7 +4137,13 @@ def assign_task(task_id):
 
 @app.route("/view-admins", methods=["GET", "POST"])
 def view_admins():
-    all_admins = User.query.filter_by(is_admin=True).all()
+    # Get all admins from Firestore
+    all_admins_docs = db.collection('users').where('is_admin', '==', True).stream() if db else []
+    all_admins = []
+    for doc in all_admins_docs:
+        admin_data = doc.to_dict()
+        admin_data['id'] = doc.id
+        all_admins.append(admin_data)
     is_admin_logged_in = session.get("is_admin", False)
     logged_in_email = session.get("user_email")
 
