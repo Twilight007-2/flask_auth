@@ -1148,6 +1148,9 @@ def verify_otp():
     user = User.query.filter_by(email=email).first()
     if not user:
         return redirect("/forgot-password")
+    
+    # Handle OTP from query parameter (fallback when email fails)
+    entered_otp = request.args.get("entered_otp", "").strip()
 
     if request.method == "POST":
         otp = request.form.get("otp", "").strip()
