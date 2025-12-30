@@ -2566,6 +2566,8 @@ def view_tasks():
     if not user_obj:
         return redirect(url_for("signin"))
     
+    message = ""
+    
     # POST: if user is creating a new task
     if request.method == "POST":
         title = request.form.get("title", "").strip()
@@ -2578,23 +2580,23 @@ def view_tasks():
                 'description': description,
                 'reward': reward,
                 'status': 'pending',
-                'created_by': user_obj['id'],
+                'created_by': user_obj.get('username', user_obj.get('email', '')),
                 'assigned_to': None,
                 'active_for_user': False,
-                'completed': False,
-                'created_at': datetime.utcnow()
+                'completed': False
             }
             task_id = create_task(task_data)
             if task_id:
-                flash("Task posted successfully!", "success")
+                message = "Task posted successfully!"
             else:
-                flash("Failed to create task!", "danger")
+                message = "Failed to create task!"
         else:
-            flash("All fields are required!", "danger")
-        return redirect(url_for("view_tasks"))
+            message = "All fields are required!"
 
     # GET: Show tasks
     tasks = query_tasks({'status': 'approved', 'assigned_to': None})
+    if not tasks:
+        tasks = query_tasks({'status': 'pending'})  # Show pending tasks if no approved tasks
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -2684,24 +2686,33 @@ def view_tasks():
                     </tr>
                     {% endfor %}
                 </table>
+                {% else %}
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <p>No tasks available at the moment. Post a new task below!</p>
+                    </div>
+                {% endif %}
 
                 <h2>Post a New Task</h2>
-                <form method="POST">
-                    <a href="{{ url_for('my_tasks') }}" class="post-btn">
+                <form method="POST" style="background: #f8f9fa; padding: 25px; border-radius: 15px; margin-top: 20px;">
+                    <input type="text" name="title" placeholder="Task Title" required style="width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 2px solid #e0e0e0; font-family: 'Poppins', sans-serif;">
+                    <textarea name="description" placeholder="Task Description" rows="4" required style="width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 2px solid #e0e0e0; font-family: 'Poppins', sans-serif;"></textarea>
+                    <input type="text" name="reward" placeholder="Reward" required style="width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 2px solid #e0e0e0; font-family: 'Poppins', sans-serif;">
+                    <button type="submit" class="post-btn" style="padding: 12px 24px; background: #0d6efd; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; margin-top: 10px;">Post Task</button>
+                </form>
+                <div style="text-align: center; margin-top: 20px;">
+                    <a href="{{ url_for('my_tasks') }}" class="post-btn" style="text-decoration: none; display: inline-block; padding: 12px 24px; background: #198754; color: white; border-radius: 8px; font-weight: 600;">
                         📋 My Tasks
                     </a>
-                    <br><br>
-                    <input type="text" name="title" placeholder="Task Title" required>
-                    <textarea name="description" placeholder="Task Description" rows="4" required></textarea>
-                    <input type="text" name="reward" placeholder="Reward" required>
-                    <button type="submit" class="post-btn">Post Task</button>
-                </form>
+                    <a href="{{ url_for('dashboard', email=user_obj.get('email', '')) }}" class="post-btn" style="text-decoration: none; display: inline-block; padding: 12px 24px; background: #667eea; color: white; border-radius: 8px; font-weight: 600; margin-left: 10px;">
+                        🏠 Dashboard
+                    </a>
+                </div>
 
             </div>
         </div>
     </body>
     </html>
-    """, tasks=tasks, user_obj=user_obj)
+    """, tasks=tasks, user_obj=user_obj, message=message)
 
 @app.route("/accept-task/<int:task_id>")
 def accept_task(task_id):
