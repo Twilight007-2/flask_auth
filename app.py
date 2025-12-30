@@ -38,8 +38,6 @@ ADMIN_PASSWORD = "Admin@123"
 
 users = {}
 
-basedir = os.path.abspath(os.path.dirname(__file__))
-
 # Simple JSON-based database files
 DB_FILE = os.path.join(basedir, "users_db.json")
 JSON_DB_FILE = 'users_db.json'
