@@ -246,17 +246,21 @@ def home():
                 display: inline-block;
                 margin-top: 10px;
                 margin-right: 10px;
-                padding: 8px 14px;
+                padding: 10px 18px;
                 background: #38bdf8;
-                color: #000;
+                color: #000 !important;
                 text-decoration: none;
                 border-radius: 4px;
                 font-weight: bold;
+                font-size: 14px;
                 transition: background 0.3s;
+                border: none;
+                cursor: pointer;
             }
 
             .project-link:hover {
                 background: #0ea5e9;
+                color: #000 !important;
             }
 
             /* FOOTER */
@@ -341,7 +345,7 @@ def home():
                 <p><strong>Technologies:</strong> Python, Flask, MySQL</p>
                 <p><strong>Status:</strong> Under Development</p>
 
-                <a href="{{ url_for('signup') }}" class="project-link">
+                <a href="{{ url_for('signin') }}" class="project-link">
                    View Live Website
                 </a>
                 <a href="https://github.com/Twilight007-2/Task-Management-Website" target="_blank" class="project-link">
