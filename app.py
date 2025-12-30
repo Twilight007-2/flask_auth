@@ -1383,9 +1383,12 @@ def dashboard(email):
 
     return render_template_string(r"""
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Dashboard - NeoLogin</title>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>                     
             form input[type="file"] {
                 margin-top: 10px;
@@ -1543,77 +1546,94 @@ def dashboard(email):
         </style>
     </head>
     <body>
-        <a href="{{ url_for('view_admins') }}" class="view-admins-btn">
-            👑 View Admins 👑
-        </a>
-        <div class="overlay">
-            <div class="logo">NeoLogin</div>
-            <div class="dashboard">
-                <div style="position: relative; text-align:center; margin-bottom:20px;">
-                    <!-- Profile Picture -->
-                    <img src="{{ url_for('static', filename='profile_photos/' + user['profile_photo']) if user.get('profile_photo') else url_for('static', filename='profile_photos/default.png') }}"
-                        alt="Profile Photo"
-                        class="profile-pic"
-                        style="width:120px; height:120px; border-radius:50%; object-fit:cover; border:3px solid #6f42c1; background:#ccc;">
-                    <!-- Choose File (Pen icon) -->
-                    <form action="{{ url_for('update_profile_photo', email=user['email']) }}" method="POST" enctype="multipart/form-data">
-                        <label for="profile_photo" style="
-                            position: absolute;
-                            top: -10px;
-                            right: -10px;
-                            background-color: #6f42c1;
-                            color: white;
-                            width:30px;
-                            height:30px;
-                            border-radius:50%;
-                            display:flex;
-                            align-items:center;
-                            justify-content:center;
-                            cursor:pointer;
-                            font-size:16px;
-                            border:2px solid white;
-                            box-shadow:0 2px 6px rgba(0,0,0,0.3);
-                            transition: all 0.2s ease;
-                        ">✏️</label>
-                        <input type="file" name="profile_photo" id="profile_photo" accept="image/*" required style="display:none;">
-        
-                        <!-- Upload Button -->
-                        <button type="submit" style="
-                            display:block;
-                            margin: 15px auto 0 auto;
-                            background-color: #0d6efd;
-                            color: white;
-                            padding: 10px 25px;
-                            border: none;
-                            border-radius: 8px;
-                            font-weight: bold;
-                            cursor: pointer;
-                            transition: all 0.2s ease;
-                        ">Upload</button>
-                    </form>
+        <div class="container">
+            <div class="header">
+                <div class="logo">✨ NeoLogin</div>
+                <div class="header-actions">
+                    {% if session.get('is_admin') %}
+                    <a href="{{ url_for('view_admins') }}" class="btn-header">👑 View Admins</a>
+                    <a href="{{ url_for('admin_menu') }}" class="btn-header">⚙️ Admin Menu</a>
+                    {% endif %}
                 </div>
-                <script>
-                    const uploadBtn = document.querySelector('button[type="submit"]');
-                    const chooseFileLabel = document.querySelector('label[for="profile_photo"]');
-                    uploadBtn.onmouseover = () => uploadBtn.style.backgroundColor = "#084298";
-                    uploadBtn.onmouseout = () => uploadBtn.style.backgroundColor = "#0d6efd";
-                    chooseFileLabel.onmouseover = () => chooseFileLabel.style.backgroundColor = "#532d91";
-                    chooseFileLabel.onmouseout = () => chooseFileLabel.style.backgroundColor = "#6f42c1";
-                </script>
-                <h2>Welcome, {{ full_name }}</h2>
-                <div class="info">
-                    <p><b>Name:</b> {{ full_name }}</p>
-                    <p><b>Gender:</b> {{ user['gender'] }}</p>
-                    <p><b>Date_of_Birth:</b> {{ user['dob'] }}</p>
-                    <p><b>Age:</b> {{ age }}</p>
-                    <p><b>Email_ID:</b> {{ user['email'] }}</p>
-                    <p><b>Mobile_Number:</b> {{ user['mobile'] }}</p>
-                    <p><b>User_Name:</b> {{ user['username'] }}</p>
+            </div>
+
+            <div class="dashboard-card">
+                <div class="profile-section">
+                    <div class="profile-picture-container">
+                        <img src="{{ url_for('static', filename='uploads/' + user['profile_photo']) if user.get('profile_photo') and user['profile_photo'] != 'default.png' else url_for('static', filename='uploads/default.png') }}"
+                            alt="Profile Photo"
+                            class="profile-pic">
+                        <form action="{{ url_for('update_profile_photo', email=user['email']) }}" method="POST" enctype="multipart/form-data" class="profile-form">
+                            <input type="file" name="profile_photo" id="profile_photo" accept="image/*" required>
+                            <button type="submit" class="upload-btn">Upload Photo</button>
+                        </form>
+                        <label for="profile_photo" class="edit-photo-btn">
+                            <span>✏️</span>
+                        </label>
+                    </div>
+                    <div class="welcome-text">Welcome, {{ full_name }}!</div>
                 </div>
-                <a href="{{ url_for('view_tasks') }}" class="tasks-btn">📋 Tasks</a>
-                <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+
+                <div class="info-section">
+                    <h2 class="section-title">Profile Information</h2>
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <div class="info-label">Full Name</div>
+                            <div class="info-value">{{ full_name }}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-label">Email Address</div>
+                            <div class="info-value">{{ user['email'] }}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-label">Username</div>
+                            <div class="info-value">{{ user['username'] }}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-label">Mobile Number</div>
+                            <div class="info-value">{{ user['mobile'] }}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-label">Gender</div>
+                            <div class="info-value">{{ user['gender'] }}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-label">Date of Birth</div>
+                            <div class="info-value">{{ user['dob'] }}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-label">Age</div>
+                            <div class="info-value">{{ age }} years</div>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <a href="{{ url_for('view_tasks') }}" class="btn-action btn-tasks">
+                            📋 View Tasks
+                        </a>
+                        <a href="{{ url_for('logout') }}" class="btn-action btn-logout">
+                            🚪 Logout
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <script>
+            const editBtn = document.querySelector('.edit-photo-btn');
+            const fileInput = document.getElementById('profile_photo');
+            const form = document.querySelector('.profile-form');
+
+            editBtn.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', () => {
+                if (fileInput.files.length > 0) {
+                    form.style.display = 'block';
+                }
+            });
+        </script>
     </body>
     </html>
     """, user=user, full_name=full_name, age=age)
