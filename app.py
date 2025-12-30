@@ -2543,7 +2543,7 @@ def dashboard(email):
                     <div class="profile-picture-container">
                         {% set profile_img = user.get('profile_photo', '') %}
                         {% if profile_img and profile_img != 'default.png' and profile_img != '' %}
-                            <img src="/static/uploads/{{ profile_img }}"
+                            <img src="{{ url_for('static', filename='uploads/' + profile_img) }}"
                                 alt="Profile Photo"
                                 class="profile-pic"
                                 onerror="console.error('Image failed to load:', this.src); this.onerror=null; this.style.display='none'; var fallback = this.nextElementSibling; if(fallback) { fallback.style.display='flex'; }">
