@@ -1090,7 +1090,7 @@ def verify_otp():
                 </script>
             """)
 
-        if datetime.now() > user.otp_expiration:
+        if datetime.utcnow() > user.otp_expiration:
             return render_template_string(r"""
                 <script>
                     alert("OTP expired!");
