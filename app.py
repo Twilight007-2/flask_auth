@@ -1323,7 +1323,7 @@ def verify_otp():
     <div class="box">
         <h3>Verify OTP</h3>
         <form method="POST">
-            <input type="text" name="otp" placeholder="Enter OTP" required>
+            <input type="text" name="otp" id="otp" placeholder="Enter OTP" value="{{ entered_otp }}" required>
 
             <label>New Password</label>
             <div class="password-container">
