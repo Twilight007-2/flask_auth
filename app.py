@@ -97,9 +97,9 @@ class Task(db.Model):
 
 # Initialize database with error handling
 try:
-with app.app_context():
-    db.create_all()
-    
+    with app.app_context():
+        db.create_all()
+        
         # Create admin user if it doesn't exist
         admin = User.query.filter_by(email=ADMIN_EMAIL).first()
         if not admin:
@@ -118,17 +118,17 @@ with app.app_context():
             db.session.commit()
 
         # Load all users into memory
-    all_users = User.query.all()
-    for u in all_users:
-        users[u.username] = {
-            "first_name": u.first_name,
-            "last_name": u.last_name,
-            "dob": u.dob,
-            "mobile": u.mobile,
-            "email": u.email,
-            "username": u.username,
-            "password": u.password,
-        }
+        all_users = User.query.all()
+        for u in all_users:
+            users[u.username] = {
+                "first_name": u.first_name,
+                "last_name": u.last_name,
+                "dob": u.dob,
+                "mobile": u.mobile,
+                "email": u.email,
+                "username": u.username,
+                "password": u.password,
+            }
         print(f"✅ Database initialized successfully. Loaded {len(users)} users.")
 except Exception as e:
     print(f"⚠️  Warning: Could not initialize database: {e}")
