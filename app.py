@@ -614,56 +614,33 @@ def signup():
             message = "Passwords do not match"
             clear_password = True
         else:
-            new_user_data = {
-                'first_name': fname,
-                'last_name': lname,
-                'dob': dob,
-                'mobile': mobile,
-                'email': email,
-                'username': username,
-                'password': generate_password_hash(password),
-                'profile_photo': filename,
-                'gender': gender,
-                'is_admin': False,
-                'reported': False,
-                'failed_attempts': 0,
-                'lock_until': None,
-                'otp': None,
-                'otp_expiration': None
-            }
-
+            # Create user in simple JSON database
             try:
-                user_id = create_user(new_user_data)
-                if user_id:
+                success = create_user(username, email, password, mobile)
+                if success:
                     # Update in-memory dictionary (optional, for backward compatibility)
                     users[username] = {
-                        "first_name": fname,
-                        "last_name": lname,
-                        "dob": dob,
-                        "mobile": mobile,
                         "email": email,
-                        "username": username,
                         "password": password,
-                        "profile_photo": filename,
-                        "gender": gender,
+                        "mobile": mobile,
                     }
                     return redirect(url_for('signin'))
                 else:
-                    message = "Registration failed. Please try again."
+                    # Double-check for duplicates
+                    if get_user_by_username(username):
+                        message = "Username already exists"
+                        clear_username = True
+                    elif get_user_by_email(email):
+                        message = "Email ID already exists"
+                        clear_email = True
+                    elif get_user_by_mobile(mobile):
+                        message = "Mobile number already exists"
+                        clear_mobile = True
+                    else:
+                        message = "Registration failed. Please try again."
             except Exception as e:
                 print(f"Error during signup: {e}")
-                # Double-check for duplicates (race condition)
-                if get_user_by_username(username):
-                    message = "Username already exists"
-                    clear_username = True
-                elif get_user_by_email(email):
-                    message = "Email ID already exists"
-                    clear_email = True
-                elif get_user_by_mobile(mobile):
-                    message = "Mobile number already exists"
-                    clear_mobile = True
-                else:
-                    message = f"Registration failed due to an error. Please try again. Error: {str(e)}"
+                message = f"Registration failed due to an error. Please try again. Error: {str(e)}"
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -1119,114 +1096,49 @@ def signin():
     """, message=message)
 
         if user:
-            # 1️⃣ Check if account is locked
-            lock_until = user.get('lock_until')
-            if lock_until:
-                # Convert Firestore timestamp to datetime if needed
-                if hasattr(lock_until, 'timestamp'):
-                    lock_until = lock_until.to_datetime()
-                if isinstance(lock_until, str):
-                    lock_until = datetime.fromisoformat(lock_until.replace('Z', '+00:00'))
-                if datetime.utcnow() < lock_until:
-                    remaining = lock_until - datetime.utcnow()
-                    minutes, seconds = divmod(remaining.seconds, 60)
-                    message = f"Account locked. Try again in {minutes}m {seconds}s"
-                return render_template_string(r"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Account Locked - NeoLogin</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                margin:0; padding:0;
-                background-image: url('https://images.unsplash.com/photo-1517511620798-cec17d428bc0?auto=format&fit=crop&w=1350&q=80');
-                background-size: cover; background-position: center;
-            }
-            .overlay {
-                background-color: rgba(255,255,255,0.8);
-                min-height:100vh;
-                display:flex;
-                flex-direction: column;
-                align-items:center;
-                justify-content:center;
-                padding:20px;
-            }
-            .box {
-                background:#f9f9f9;
-                padding:40px;
-                border-radius:10px;
-                width:400px;
-                text-align:center;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            }
-            h2 { color:#c0392b; margin-bottom:20px; }
-            p { font-size:16px; color:#333; }
-            a {
-                display:inline-block;
-                margin-top:20px;
-                padding:10px 20px;
-                background:#6f42c1;
-                color:white;
-                text-decoration:none;
-                border-radius:5px;
-                transition:0.2s;
-            }
-            a:hover { background:#5931a0; }
-        </style>
-    </head>
-    <body>
-        <div class="overlay">
-            <div class="box">
-                <h2>Account Locked!</h2>
-                <p>You have tried the wrong password too many times. Please wait 10 minutes and try again.</p>
-                <a href="{{ url_for('signin') }}">Back to Sign In</a>
-            </div>
-        </div>
-    </body>
-    </html>
-    """, message=message)
-            
-            # 2️⃣ Password check - support both hashed and plain text (for backward compatibility)
+            # Password check
             password_valid = False
             try:
                 user_password = user.get('password', '')
-                # Check if password is hashed (starts with $2b$ or $2a$)
-                if user_password and (user_password.startswith('$2b$') or user_password.startswith('$2a$')):
-                    # Password is hashed, use check_password_hash
-                    password_valid = check_password_hash(user_password, password)
+                username = user.get('username', '')
+                
+                print(f"DEBUG: Attempting login for username: {username}")
+                print(f"DEBUG: Stored password hash exists: {bool(user_password)}")
+                print(f"DEBUG: Password hash starts with $2b$ or $2a$: {user_password.startswith('$2b$') or user_password.startswith('$2a$') if user_password else False}")
+                
+                if not user_password:
+                    print("DEBUG: No password found for user")
+                    password_valid = False
                 else:
-                    # Password is plain text (old format), compare directly
-                    password_valid = (user_password == password) if user_password else False
-                    # If login successful with plain text, hash it for future use
-                    if password_valid:
-                        update_user_password(user.get('username', ''), password)
+                    # Check if password is hashed (starts with $2b$ or $2a$)
+                    if user_password.startswith('$2b$') or user_password.startswith('$2a$'):
+                        # Password is hashed, use check_password_hash
+                        password_valid = check_password_hash(user_password, password)
+                        print(f"DEBUG: Password check result: {password_valid}")
+                    else:
+                        # Password is plain text (old format), compare directly
+                        password_valid = (user_password == password)
+                        print(f"DEBUG: Plain text password check result: {password_valid}")
+                        # If login successful with plain text, hash it for future use
+                        if password_valid and username:
+                            update_user_password(username, password)
+                            print(f"DEBUG: Updated plain text password to hashed")
             except Exception as e:
-                print(f"Error during password verification: {e}")
+                print(f"ERROR during password verification: {e}")
+                import traceback
+                traceback.print_exc()
                 password_valid = False
             
             if password_valid:
                 # ✅ Successful login
+                print(f"DEBUG: Login successful for {user.get('email', '')}")
                 session['logged_in'] = True
                 session['user_email'] = user.get('email', '')
                 session['username'] = user.get('username', '')
                 return redirect(url_for('dashboard', email=user.get('email', '')))
-
-                session['logged_in'] = True
-                session['user_email'] = user.get('email', '')
-                session['is_admin'] = user.get('is_admin', False)
-                session['user_id'] = user.get('id', '')
-
-                if user.get('is_admin', False) and user.get('reported', False):
-                    session["show_admin_warning"] = True
-
-                if user.get('is_admin', False):
-                    return redirect(url_for('admin_menu'))
-                else:
-                    return redirect(url_for('dashboard', email=user.get('email', '')))
-
             else:
-                # 3️⃣ Failed login attempt
+                # Failed login attempt
+                print(f"DEBUG: Login failed - password invalid")
                 message = "Invalid password. Please try again."
 
         else:
