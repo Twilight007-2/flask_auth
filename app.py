@@ -2378,7 +2378,7 @@ def dashboard(email):
         return redirect(url_for('signin'))
 
     # Get user from database
-    user_db = User.query.filter_by(email=email).first()
+    user_db = get_user_by_email(email)
     if not user_db:
         return redirect(url_for('signin'))
     
@@ -2921,14 +2921,14 @@ def view_tasks():
                     </tr>
                     {% for t in tasks %}
                     <tr>
-                        <td>{{ t.id }}</td>
-                        <td>{{ t.title }}</td>
-                        <td>{{ t.description }}</td>
-                        <td>{{ t.reward }}</td>
-                        <td>{{ t.status }}</td>
-                        <td>
-                            {% if t.status == 'approved' and not t.assigned_to %}
-                                <a href="{{ url_for('accept_task', task_id=t.id) }}" class="accept-btn">
+                    <td>{{ t.get('id', '') }}</td>
+                    <td>{{ t.get('title', '') }}</td>
+                    <td>{{ t.get('description', '') }}</td>
+                    <td>{{ t.get('reward', '') }}</td>
+                    <td>{{ t.get('status', '') }}</td>
+                    <td>
+                            {% if t.get('status') == 'approved' and not t.get('assigned_to') %}
+                                <a href="{{ url_for('accept_task', task_id=t.get('id', '')) }}" class="accept-btn">
                                     Accept Task
                                 </a>
                             {% else %}
@@ -2964,11 +2964,11 @@ def accept_task(task_id):
 
     # 🔥 FIX: get user from DATABASE, not users dict
     user_email = session.get("user_email")
-    user = User.query.filter_by(email=user_email).first()
+    user = get_user_by_email(user_email)
     if not user:
         return redirect(url_for("signin"))
 
-    task = Task.query.get(task_id)
+    task = get_task_by_id(str(task_id))
 
     # Only approved & unassigned tasks can be accepted
     if task and task.get('status') == "approved" and not task.get('assigned_to'):
@@ -3155,21 +3155,14 @@ def switch_task(task_id):
         return redirect(url_for("signin"))
 
     user_email = session.get("user_email")
-    user = User.query.filter_by(email=user_email).first()
+    user = get_user_by_email(user_email)
     if not user:
         return redirect(url_for("signin"))
 
-    current_active = Task.query.filter_by(
-        assigned_to=user.id,
-        active_for_user=True,
-        completed=False
-    ).first()
+    current_active_tasks = query_tasks({'assigned_to': user['id'], 'active_for_user': True, 'completed': False})
+    current_active = current_active_tasks[0] if current_active_tasks else None
 
-    new_task = Task.query.filter_by(
-        id=task_id,
-        assigned_to=user.id,
-        completed=False
-    ).first()
+    new_task = get_task_by_id(str(task_id))
 
     if not new_task:
         return redirect(url_for("my_tasks"))
@@ -3526,13 +3519,13 @@ def view_users():
         </tr>
     {% for u in users %}
     <tr>
-        <td>{{ u.id }}</td>
+        <td>{{ u.get('id', '') }}</td>
         <!-- First Name -->
         <td>
-            <form method="POST" action="{{ url_for('update_name', user_id=u.id) }}">
+            <form method="POST" action="{{ url_for('update_name', user_id=u.get('id', '')) }}">
                 <input type="text"
                         name="first_name"
-                        value="{{ u.first_name }}"
+                        value="{{ u.get('first_name', '') }}"
                         class="username-input"
                         disabled>
                 <span class="pen" onclick="enableEdit(this)">✏️</span>
@@ -3540,10 +3533,10 @@ def view_users():
             </form>
         </td>
         <td>
-            <form method="POST" action="{{ url_for('update_name', user_id=u.id) }}">
+            <form method="POST" action="{{ url_for('update_name', user_id=u.get('id', '')) }}">
                 <input type="text"
                         name="last_name"
-                        value="{{ u.last_name }}"
+                        value="{{ u.get('last_name', '') }}"
                         class="username-input"
                         disabled>
                 <span class="pen" onclick="enableEdit(this)">✏️</span>
@@ -3887,7 +3880,13 @@ def admin_tasks():
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
 
-    all_tasks = Task.query.order_by(Task.id.desc()).all()
+    # Get all tasks from Firestore ordered by ID descending
+    all_tasks_docs = db.collection('tasks').order_by('__name__', direction=firestore.Query.DESCENDING).stream() if db else []
+    all_tasks = []
+    for doc in all_tasks_docs:
+        task_data = doc.to_dict()
+        task_data['id'] = doc.id
+        all_tasks.append(task_data)
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -4087,11 +4086,11 @@ def admin_task_management():
                         <button type="submit" class="approve-btn">Approve</button>
                     </form>
                     <!-- ASSIGN FORM -->
-                    <form method="GET" action="{{ url_for('assign_task', task_id=t.id) }}">
+                    <form method="GET" action="{{ url_for('assign_task', task_id=t.get('id', '')) }}">
                         <select name="user_id" required>
                             <option value="">Assign to user</option>
                             {% for u in users %}
-                                <option value="{{ u.id }}">{{ u.username }}</option>
+                                <option value="{{ u.get('id', '') }}">{{ u.get('username', '') }}</option>
                             {% endfor %}
                         </select>
                     <button type="submit">Assign</button>
@@ -4113,8 +4112,8 @@ def assign_task(task_id):
         return redirect(url_for("signin"))
 
     user_id = request.args.get("user_id")
-    task = Task.query.get(task_id)
-    user = User.query.get(user_id)
+    task = get_task_by_id(str(task_id))
+    user = get_user_by_id(str(user_id))
 
     if task and user:
         task.assigned_to = user.id
@@ -4216,15 +4215,15 @@ def view_admins():
                 </tr>
                 {% for admin in admins %}
                 <tr>
-                    <td>{{ admin.id }}</td>
-                    <td>{{ admin.first_name }}</td>
-                    <td>{{ admin.last_name }}</td>
-                    <td>{{ admin.email }}</td>
-                    <td>{{ admin.mobile }}</td>
-                    <td>{{ admin.username }}</td>
+                    <td>{{ admin.get('id', '') }}</td>
+                    <td>{{ admin.get('first_name', '') }}</td>
+                    <td>{{ admin.get('last_name', '') }}</td>
+                    <td>{{ admin.get('email', '') }}</td>
+                    <td>{{ admin.get('mobile', '') }}</td>
+                    <td>{{ admin.get('username', '') }}</td>
                     <td>
-                        {% if admin.email != logged_in_email %}
-                            <a href="{{ url_for('report_admin', user_id=admin.id) }}"
+                        {% if admin.get('email', '') != logged_in_email %}
+                            <a href="{{ url_for('report_admin', user_id=admin.get('id', '')) }}"
                             onclick="return confirm('Report this admin?')"
                             class="report-btn">⚠️ Report Admin</a>
                         {% else %}
@@ -4243,11 +4242,10 @@ def view_admins():
 def remove_admin(user_id):
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
-    user = User.query.get(user_id)
+    user = get_user_by_id(str(user_id))
     current_admin_email = session.get("user_email")
-    if user and user.is_admin and user.email != current_admin_email:
-        user.is_admin = False  # ✅ revert to regular user
-        db.session.commit()
+    if user and user.get('is_admin', False) and user.get('email', '') != current_admin_email:
+        update_user(user['id'], {'is_admin': False})  # ✅ revert to regular user
 
     return redirect(url_for("view_users"))
 
