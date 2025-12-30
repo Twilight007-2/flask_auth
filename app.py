@@ -60,9 +60,23 @@ else:
     # SQLite fallback - persistent file-based database
     db_path = os.path.join(basedir, "neologin.db")
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
-    print(f"✅ Using SQLite database at: {db_path}")
+    
     # Ensure the database file directory exists
     os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else '.', exist_ok=True)
+    
+    # Check if database file exists (data persistence check)
+    db_exists = os.path.exists(db_path)
+    if db_exists:
+        file_size = os.path.getsize(db_path)
+        print(f"✅ Using existing SQLite database at: {db_path} ({file_size} bytes)")
+    else:
+        print(f"✅ Creating new SQLite database at: {db_path}")
+    
+    # Configure SQLite for better persistence
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+    }
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
