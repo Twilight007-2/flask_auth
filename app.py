@@ -2179,7 +2179,7 @@ def dashboard(email):
     # Get all user data from JSON database
     first_name = user_db.get('first_name', '')
     last_name = user_db.get('last_name', '')
-    profile_photo = user_db.get('profile_photo', 'default.png')
+    profile_photo = user_db.get('profile_photo', '')
     
     # Build full name
     if first_name and last_name:
