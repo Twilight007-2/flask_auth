@@ -38,7 +38,19 @@ ADMIN_PASSWORD = "Admin@123"
 users = {}
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:qwertasdf1234%21%40%23%24@localhost:3306/neologin'
+
+# Database configuration - Use SQLite for Render (MySQL localhost won't work on Render)
+# For production, use PostgreSQL by setting DATABASE_URL environment variable in Render
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    # Render PostgreSQL - replace postgres:// with postgresql://
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    # SQLite fallback (works on Render)
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "neologin.db")}'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -83,10 +95,12 @@ class Task(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-with app.app_context():
-    db.create_all()
-    
+# Initialize database with error handling
+try:
     with app.app_context():
+        db.create_all()
+        
+        # Create admin user if it doesn't exist
         admin = User.query.filter_by(email=ADMIN_EMAIL).first()
         if not admin:
             admin = User(
@@ -103,17 +117,23 @@ with app.app_context():
             db.session.add(admin)
             db.session.commit()
 
-    all_users = User.query.all()
-    for u in all_users:
-        users[u.username] = {
-            "first_name": u.first_name,
-            "last_name": u.last_name,
-            "dob": u.dob,
-            "mobile": u.mobile,
-            "email": u.email,
-            "username": u.username,
-            "password": u.password,
-        }
+        # Load all users into memory
+        all_users = User.query.all()
+        for u in all_users:
+            users[u.username] = {
+                "first_name": u.first_name,
+                "last_name": u.last_name,
+                "dob": u.dob,
+                "mobile": u.mobile,
+                "email": u.email,
+                "username": u.username,
+                "password": u.password,
+            }
+        print(f"✅ Database initialized successfully. Loaded {len(users)} users.")
+except Exception as e:
+    print(f"⚠️  Warning: Could not initialize database: {e}")
+    print(f"   The app will continue to run, but database features may not work.")
+    print(f"   Currently using: {app.config['SQLALCHEMY_DATABASE_URI']}")
 def calculate_age(dob_str):
     try:
         dob = datetime.strptime(dob_str, "%Y-%m-%d")
@@ -125,7 +145,7 @@ def calculate_age(dob_str):
 # Home Page
 @app.route("/")
 def home():
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -273,7 +293,7 @@ def signup():
             }
             return redirect(url_for('signin'))
 
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -452,7 +472,7 @@ def signin():
 
     if session.get("logged_in"):
         email = session.get("user_email")
-        return render_template_string("""
+        return render_template_string(r"""
         <script>
             alert("You are already logged in. Please logout first to access Sign In.");
             window.location.href = "{{ url_for('dashboard', email=email) }}";
@@ -474,7 +494,7 @@ def signin():
                 remaining = user.lock_until - datetime.utcnow()
                 minutes, seconds = divmod(remaining.seconds, 60)
                 message = f"Account locked. Try again in {minutes}m {seconds}s"
-                return render_template_string("""
+                return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -562,7 +582,7 @@ def signin():
         else:
             message = "Invalid email/mobile or password"
 
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -700,7 +720,7 @@ def forgot_password():
         # Find user
         user = User.query.filter_by(email=email).first()
         if not user:
-            return render_template_string("""
+            return render_template_string(r"""
                 <script>
                     alert("User not found!");
                     window.location.href = "/forgot-password";
@@ -717,7 +737,7 @@ def forgot_password():
         if user.lock_until:
             lock_until_ist = user.lock_until.astimezone(ist) if user.lock_until.tzinfo else ist.localize(user.lock_until)
             if now_ist < lock_until_ist:
-                return render_template_string("""
+                return render_template_string(r"""
                     <script>
                         alert("Too many reset attempts. Try again after 10 minutes.");
                         window.location.href = "/forgot-password";
@@ -754,7 +774,7 @@ def forgot_password():
         """)
 
     # GET request → show email input form
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -822,7 +842,7 @@ def verify_otp():
         pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&]).{8,}$'
 
         if user.otp != otp:
-            return render_template_string("""
+            return render_template_string(r"""
                 <script>
                     alert("Invalid OTP!");
                     window.location.href = "/verify-otp";
@@ -830,7 +850,7 @@ def verify_otp():
             """)
 
         if datetime.now() > user.otp_expiration:
-            return render_template_string("""
+            return render_template_string(r"""
                 <script>
                     alert("OTP expired!");
                     window.location.href = "/forgot-password";
@@ -838,7 +858,7 @@ def verify_otp():
             """)
 
         if not re.match(pattern, password):
-            return render_template_string("""
+            return render_template_string(r"""
                 <script>
                     alert("Password does not meet requirements!");
                     window.location.href = "/verify-otp";
@@ -846,7 +866,7 @@ def verify_otp():
             """)
 
         if password != confirm_password:
-            return render_template_string("""
+            return render_template_string(r"""
                 <script>
                     alert("Passwords do not match!");
                     window.location.href = "/verify-otp";
@@ -861,14 +881,14 @@ def verify_otp():
 
         session.pop("reset_email", None)
 
-        return render_template_string("""
+        return render_template_string(r"""
             <script>
                 alert("Password updated successfully!");
                 window.location.href = "/signin";
             </script>
         """)
 
-    return render_template_string("""
+    return render_template_string(r"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -1053,7 +1073,7 @@ def reset_password(token):
 
         return redirect(url_for("signin"))  # or show success message
 
-    return render_template_string("""
+    return render_template_string(r"""
         <form method="POST">
             New Password: <input type="password" name="password" required><br>
             Confirm Password: <input type="password" name="confirm_password" required><br>
@@ -1095,7 +1115,7 @@ def dashboard(email):
 
     age = calculate_age(user["dob"])
     if age == "INVALID_DOB":
-        return render_template_string("""
+        return render_template_string(r"""
             <script>
                 alert("Your DOB is wrong. Please update it.");
                 window.location.href = "/edit-profile";
@@ -1104,7 +1124,7 @@ def dashboard(email):
 
     full_name = f"{user['first_name']} {user['last_name']}"
 
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -1381,7 +1401,7 @@ def view_tasks():
         assigned_to=None
     ).all()
 
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -1554,7 +1574,7 @@ def my_tasks():
     pending_tasks = Task.query.filter_by(assigned_to=user_obj.id, active_for_user=False, completed=False).all()
     completed_tasks = Task.query.filter_by(assigned_to=user_obj.id, completed=True).all()
 
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -1764,14 +1784,14 @@ def post_task():
         reward = request.form.get("reward", "").strip()
 
         # For now: just confirm submission (no storage yet)
-        return render_template_string("""
+        return render_template_string(r"""
         <script>
             alert("Task submitted successfully! Waiting for admin approval.");
             window.location.href = "/tasks";
         </script>
         """)
 
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -1899,7 +1919,7 @@ def view_users():
 
     all_users = User.query.all()
 
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -2269,7 +2289,7 @@ def admin_menu():
     warning = session.pop("show_admin_warning", False)
 
     email = session.get("user_email")
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -2412,7 +2432,7 @@ def admin_tasks():
 
     all_tasks = Task.query.order_by(Task.id.desc()).all()
 
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -2539,7 +2559,7 @@ def admin_task_management():
     tasks = Task.query.order_by(Task.created_at.desc()).all()
     users = User.query.all()
 
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -2646,7 +2666,7 @@ def view_admins():
     is_admin_logged_in = session.get("is_admin", False)
     logged_in_email = session.get("user_email")
 
-    return render_template_string("""
+    return render_template_string(r"""
     <!DOCTYPE html>
     <html>
     <head>
