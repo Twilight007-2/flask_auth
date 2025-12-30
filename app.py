@@ -1345,17 +1345,30 @@ def make_admin(user_id):
 # Dashboard/Profile Page
 @app.route("/dashboard/<email>")
 def dashboard(email):
-    # Find the user by email
-    user_found = None
-    for u in users.values():
-        if u["email"] == email:
-            user_found = u
-            break
-
-    if not user_found:
+    # Check if user is logged in
+    if not session.get("logged_in"):
         return redirect(url_for('signin'))
-
-    user = user_found
+    
+    # Verify the email matches the logged-in user
+    if session.get("user_email") != email:
+        return redirect(url_for('signin'))
+    
+    # Get user from database
+    user_db = User.query.filter_by(email=email).first()
+    if not user_db:
+        return redirect(url_for('signin'))
+    
+    # Convert database user to dictionary format for template
+    user = {
+        "first_name": user_db.first_name,
+        "last_name": user_db.last_name,
+        "dob": user_db.dob,
+        "mobile": user_db.mobile,
+        "email": user_db.email,
+        "username": user_db.username,
+        "profile_photo": user_db.profile_photo,
+        "gender": user_db.gender
+    }
 
     age = calculate_age(user["dob"])
     if age == "INVALID_DOB":
