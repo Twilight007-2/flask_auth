@@ -1000,93 +1000,19 @@ def forgot_password():
         # ✅ Save email in session for verification
         session['reset_email'] = user.email
 
-        # ✅ Send OTP via Email
-        # Check if mail is configured
-        mail_password = app.config.get('MAIL_PASSWORD', '')
-        if not mail_password or mail_password == '':
-            # If email not configured, show OTP directly (fallback)
-            return render_template_string(f"""
-                <script>
-                    var otp = prompt("Email service not configured. Your OTP is: {otp}. Please enter it to verify:");
-                    if (otp) {{
-                        window.location.href = "/verify-otp?entered_otp=" + otp;
-                    }} else {{
-                        alert("OTP entry cancelled.");
-                        window.location.href = "/forgot-password";
-                    }}
-                </script>
-            """)
-        
-        try:
-            msg = Message(
-                subject='Password Reset OTP - NeoLogin',
-                recipients=[user.email],
-                sender=app.config.get('MAIL_DEFAULT_SENDER', 'swamythk07@gmail.com'),
-                body=f'''
-Hello {user.first_name},
-
-You have requested to reset your password for your NeoLogin account.
-
-Your OTP (One-Time Password) is: {otp}
-
-This OTP will expire in 5 minutes.
-
-If you did not request this password reset, please ignore this email.
-
-Best regards,
-NeoLogin Team
-                ''',
-                html=f'''
-<html>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #6f42c1;">Password Reset Request</h2>
-        <p>Hello <strong>{user.first_name}</strong>,</p>
-        <p>You have requested to reset your password for your NeoLogin account.</p>
-        <div style="background-color: #f4f4f4; padding: 20px; border-radius: 5px; text-align: center; margin: 20px 0;">
-            <h3 style="color: #6f42c1; margin: 0;">Your OTP Code</h3>
-            <p style="font-size: 32px; font-weight: bold; color: #333; margin: 10px 0; letter-spacing: 5px;">{otp}</p>
-        </div>
-        <p><strong>This OTP will expire in 5 minutes.</strong></p>
-        <p>If you did not request this password reset, please ignore this email.</p>
-        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-        <p style="color: #666; font-size: 12px;">Best regards,<br>NeoLogin Team</p>
-    </div>
-</body>
-</html>
-                '''
-            )
-            
-            # Send email
-            mail.send(msg)
-            
-            # Show success message and redirect to verify-otp page
-            return render_template_string(r"""
-                <script>
-                    alert("OTP has been sent to your email address. Please check your inbox.");
-                    window.location.href = "/verify-otp";
-                </script>
-            """)
-        except Exception as e:
-            # If email sending fails, log error and show OTP as fallback
-            import traceback
-            error_msg = str(e)
-            print(f"Email sending error: {error_msg}")
-            print(traceback.format_exc())
-            
-            # Fallback: Show OTP in prompt if email fails
-            return render_template_string(f"""
-                <script>
-                    alert("Failed to send email. Error: {error_msg}");
-                    var otp = prompt("Your OTP is: {otp}. Please enter it to verify:");
-                    if (otp) {{
-                        window.location.href = "/verify-otp?entered_otp=" + otp;
-                    }} else {{
-                        alert("OTP entry cancelled.");
-                        window.location.href = "/forgot-password";
-                    }}
-                </script>
-            """)
+        # ✅ Show OTP directly on the page (old method)
+        return render_template_string(f"""
+            <script>
+                var otp = prompt("Your OTP is: {otp}. Please enter it to verify:");
+                if (otp) {{
+                    // Redirect to verify-otp route with OTP as query param
+                    window.location.href = "/verify-otp?entered_otp=" + otp;
+                }} else {{
+                    alert("OTP entry cancelled.");
+                    window.location.href = "/forgot-password";
+                }}
+            </script>
+        """)
 
     # GET request → show email input form
     return render_template_string(r"""
