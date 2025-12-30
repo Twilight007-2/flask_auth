@@ -20,9 +20,9 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'yourgmail@gmail.com'  # replace with your Gmail
-app.config['MAIL_PASSWORD'] = 'your_app_password'   # must be app password if 2FA enabled
-app.config['MAIL_DEFAULT_SENDER'] = 'yourgmail@gmail.com'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', 'swamythk07@gmail.com')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')  # must be app password if 2FA enabled
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'swamythk07@gmail.com')
 
 mail = Mail(app)
 
@@ -32,7 +32,7 @@ def generate_otp():
 os.makedirs(app.instance_path, exist_ok=True)
 os.makedirs('static/uploads', exist_ok=True)
 
-ADMIN_EMAIL = "admin@neologin.com"
+ADMIN_EMAIL = "swamythk07@gmail.com"
 ADMIN_PASSWORD = "Admin@123"
 
 users = {}
@@ -997,22 +997,65 @@ def forgot_password():
         user.otp_expiration = datetime.utcnow() + timedelta(minutes=5)
         db.session.commit()
 
-        # ✅ Save email and password in session for verification
+        # ✅ Save email in session for verification
         session['reset_email'] = user.email
 
-        # ✅ OTP prompt via JavaScript
-        return render_template_string(f"""
-            <script>
-                var otp = prompt("Your OTP is: {otp}. Please enter it to verify:");
-                if (otp) {{
-                    // Redirect to verify-otp route with OTP as query param
-                    window.location.href = "/verify-otp?entered_otp=" + otp;
-                }} else {{
-                    alert("OTP entry cancelled.");
+        # ✅ Send OTP via Email
+        try:
+            msg = Message(
+                subject='Password Reset OTP - NeoLogin',
+                recipients=[user.email],
+                body=f'''
+Hello {user.first_name},
+
+You have requested to reset your password for your NeoLogin account.
+
+Your OTP (One-Time Password) is: {otp}
+
+This OTP will expire in 5 minutes.
+
+If you did not request this password reset, please ignore this email.
+
+Best regards,
+NeoLogin Team
+                ''',
+                html=f'''
+<html>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #6f42c1;">Password Reset Request</h2>
+        <p>Hello <strong>{user.first_name}</strong>,</p>
+        <p>You have requested to reset your password for your NeoLogin account.</p>
+        <div style="background-color: #f4f4f4; padding: 20px; border-radius: 5px; text-align: center; margin: 20px 0;">
+            <h3 style="color: #6f42c1; margin: 0;">Your OTP Code</h3>
+            <p style="font-size: 32px; font-weight: bold; color: #333; margin: 10px 0; letter-spacing: 5px;">{otp}</p>
+        </div>
+        <p><strong>This OTP will expire in 5 minutes.</strong></p>
+        <p>If you did not request this password reset, please ignore this email.</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+        <p style="color: #666; font-size: 12px;">Best regards,<br>NeoLogin Team</p>
+    </div>
+</body>
+</html>
+                '''
+            )
+            mail.send(msg)
+            
+            # Show success message and redirect to verify-otp page
+            return render_template_string(r"""
+                <script>
+                    alert("OTP has been sent to your email address. Please check your inbox.");
+                    window.location.href = "/verify-otp";
+                </script>
+            """)
+        except Exception as e:
+            # If email sending fails, show error
+            return render_template_string(f"""
+                <script>
+                    alert("Failed to send OTP email. Error: {str(e)}. Please try again later.");
                     window.location.href = "/forgot-password";
-                }}
-            </script>
-        """)
+                </script>
+            """)
 
     # GET request → show email input form
     return render_template_string(r"""
