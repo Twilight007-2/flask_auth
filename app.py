@@ -2934,9 +2934,24 @@ def view_tasks():
         return redirect(url_for("signin"))
     
     user_email = session.get("user_email")
-    user_obj = get_user_by_email(user_email)
-    if not user_obj:
-        return redirect(url_for("signin"))
+    is_admin = session.get("is_admin", False)
+    
+    # Handle admin users
+    if is_admin:
+        user_obj = get_admin_by_email(user_email)
+        if not user_obj:
+            return redirect(url_for("signin"))
+        # Create a user_obj-like structure for admin
+        user_obj = {
+            'email': user_obj.get('email', ''),
+            'username': 'admin',
+            'email': user_email
+        }
+    else:
+        # Handle regular users
+        user_obj = get_user_by_email(user_email)
+        if not user_obj:
+            return redirect(url_for("signin"))
     
     message = ""
     
@@ -2966,9 +2981,13 @@ def view_tasks():
             message = "All fields are required!"
 
     # GET: Show tasks
-    tasks = query_tasks({'status': 'approved', 'assigned_to': None})
-    if not tasks:
-        tasks = query_tasks({'status': 'pending'})  # Show pending tasks if no approved tasks
+    # For admin, show all tasks; for regular users, show approved/unassigned tasks
+    if is_admin:
+        tasks = query_tasks()  # Show all tasks for admin
+    else:
+        tasks = query_tasks({'status': 'approved', 'assigned_to': None})
+        if not tasks:
+            tasks = query_tasks({'status': 'pending'})  # Show pending tasks if no approved tasks
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -3079,9 +3098,15 @@ def view_tasks():
                     <a href="{{ url_for('my_tasks') }}" class="post-btn" style="text-decoration: none; display: inline-block; padding: 12px 24px; background: #198754; color: white; border-radius: 8px; font-weight: 600;">
                         📋 My Tasks
                     </a>
+                    {% if session.get('is_admin') %}
+                    <a href="{{ url_for('admin_menu') }}" class="post-btn" style="text-decoration: none; display: inline-block; padding: 12px 24px; background: #667eea; color: white; border-radius: 8px; font-weight: 600; margin-left: 10px;">
+                        ⚙️ Admin Menu
+                    </a>
+                    {% else %}
                     <a href="{{ url_for('dashboard', email=user_obj.get('email', '')) }}" class="post-btn" style="text-decoration: none; display: inline-block; padding: 12px 24px; background: #667eea; color: white; border-radius: 8px; font-weight: 600; margin-left: 10px;">
                         🏠 Dashboard
                     </a>
+                    {% endif %}
                 </div>
 
             </div>
