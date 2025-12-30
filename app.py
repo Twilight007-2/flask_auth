@@ -2382,16 +2382,16 @@ def dashboard(email):
     if not user_db:
         return redirect(url_for('signin'))
     
-    # Convert database user to dictionary format for template
+    # User data is already in dictionary format from Firestore
     user = {
-        "first_name": user_db.first_name,
-        "last_name": user_db.last_name,
-        "dob": user_db.dob,
-        "mobile": user_db.mobile,
-        "email": user_db.email,
-        "username": user_db.username,
-        "profile_photo": user_db.profile_photo,
-        "gender": user_db.gender
+        "first_name": user_db.get('first_name', ''),
+        "last_name": user_db.get('last_name', ''),
+        "dob": user_db.get('dob', ''),
+        "mobile": user_db.get('mobile', ''),
+        "email": user_db.get('email', ''),
+        "username": user_db.get('username', ''),
+        "profile_photo": user_db.get('profile_photo', 'default.png'),
+        "gender": user_db.get('gender', '')
     }
 
     age = calculate_age(user["dob"])
@@ -3359,7 +3359,13 @@ def view_users():
     if not session.get("logged_in") or not session.get("is_admin"):
         return redirect(url_for("signin"))
 
-    all_users = User.query.all()
+    # Get all users from Firestore
+    all_users_docs = db.collection('users').stream() if db else []
+    all_users = []
+    for doc in all_users_docs:
+        user_data = doc.to_dict()
+        user_data['id'] = doc.id
+        all_users.append(user_data)
 
     return render_template_string(r"""
     <!DOCTYPE html>
@@ -3631,8 +3637,8 @@ def update_username(user_id):
     new_username = request.form.get("username", "").strip()
 
     # Prevent duplicates
-    existing = User.query.filter_by(username=new_username).first()
-    if existing and existing.id != user_id:
+    existing = get_user_by_username(new_username)
+    if existing and existing.get('id') != str(user_id):
         return redirect(url_for("view_users"))
 
 
@@ -4115,21 +4121,21 @@ def assign_task(task_id):
     user = get_user_by_id(str(user_id))
 
     if task and user:
-        task.assigned_to = user.id
-        task.status = "accepted"
-        task.completed = False
-        existing_active = Task.query.filter_by(
-            assigned_to=user.id,
-            active_for_user=True,
-            completed=False
-        ).first()
+        existing_active_tasks = query_tasks({'assigned_to': user['id'], 'active_for_user': True, 'completed': False})
+        existing_active = existing_active_tasks[0] if existing_active_tasks else None
 
+        updates = {
+            'assigned_to': user['id'],
+            'status': 'accepted',
+            'completed': False
+        }
+        
         if existing_active:
-            task.active_for_user = False   # goes to Pending
+            updates['active_for_user'] = False   # goes to Pending
         else:
-            task.active_for_user = True    # becomes Active
+            updates['active_for_user'] = True    # becomes Active
 
-        db.session.commit()
+        update_task(task['id'], updates)
 
     return redirect(url_for("admin_task_management"))
 
