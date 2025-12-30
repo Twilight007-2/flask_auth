@@ -200,6 +200,14 @@ def update_user_password(username, new_password):
         return save_users(users_data)
     return False
 
+def update_user_admin_status(username, is_admin):
+    """Update user admin status."""
+    users_data = load_users()
+    if username in users_data:
+        users_data[username]['is_admin'] = is_admin
+        return save_users(users_data)
+    return False
+
 # ================= TASK DATABASE FUNCTIONS =================
 def load_tasks():
     """Load tasks from the JSON database file."""
@@ -2980,13 +2988,12 @@ def view_tasks():
             message = "All fields are required!"
 
     # GET: Show tasks
-    # For admin, show all tasks; for regular users, show approved/unassigned tasks
+    # For admin, show all tasks; for regular users, show ONLY approved tasks
     if is_admin:
         tasks = query_tasks()  # Show all tasks for admin
     else:
-        tasks = query_tasks({'status': 'approved', 'assigned_to': None})
-        if not tasks:
-            tasks = query_tasks({'status': 'pending'})  # Show pending tasks if no approved tasks
+        # Regular users can ONLY see approved tasks (pending tasks are hidden)
+        tasks = query_tasks({'status': 'approved'})
 
     return render_template_string(r"""
     <!DOCTYPE html>
