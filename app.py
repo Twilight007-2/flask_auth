@@ -973,16 +973,11 @@ def forgot_password():
                 </script>
             """)
 
-        import pytz
-        from datetime import datetime, timedelta
-
-        ist = pytz.timezone("Asia/Kolkata")
-        now_ist = datetime.now(ist)
-
         # Check lock
         if user.lock_until:
-            lock_until_ist = user.lock_until.astimezone(ist) if user.lock_until.tzinfo else ist.localize(user.lock_until)
-            if now_ist < lock_until_ist:
+            now_utc = datetime.utcnow()
+            # Compare UTC times
+            if now_utc < user.lock_until:
                 return render_template_string(r"""
                     <script>
                         alert("Too many reset attempts. Try again after 10 minutes.");
@@ -999,7 +994,7 @@ def forgot_password():
         import random
         otp = str(random.randint(100000, 999999))
         user.otp = otp
-        user.otp_expiration = datetime.now() + timedelta(minutes=5)
+        user.otp_expiration = datetime.utcnow() + timedelta(minutes=5)
         db.session.commit()
 
         # ✅ Save email and password in session for verification
